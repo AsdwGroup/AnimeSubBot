@@ -1,15 +1,16 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*$py.class
 
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
+src/env/
 env/
 build/
+Build/
 develop-eggs/
 dist/
 downloads/
@@ -43,20 +44,34 @@ htmlcov/
 nosetests.xml
 coverage.xml
 *,cover
-.hypothesis/
 
 # Translations
 *.mo
-*.pot
+#*.pot
 
 # Django stuff:
 *.log
 
 # Sphinx documentation
 docs/_build/
+docs/_build_html
+# This is needed to include the custom css into the website
+#docs/_static
 
 # PyBuilder
 target/
 
-#Ipython Notebook
-.ipynb_checkpoints
+# Configuration Files
+src/config.ini
+
+# Logs
+src/logs.txt
+src/log.txt
+src/Log/*
+src/Logs/*
+
+# pyCharm stuff
+.idea/
+
+# eclise stuff
+.settings/
