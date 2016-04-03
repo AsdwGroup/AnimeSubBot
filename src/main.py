@@ -91,7 +91,15 @@ def Main():
     # This object in needed for the main process to interact with the
     # subprocess (the worker).
     # SecondQueue = multiprocessing.Queue(1)
-
+    
+    # This object is the event to shutdown all the subprocesses
+    # it defaults to true and will be set to false in the end.
+    ShutdownEventObject = multiprocessing.Event()
+    ShutdownEventObject.set()
+    
+    # This variable holds all the processes
+    Processes = []
+    
     Queue = multiprocessing.Queue()
     Queue.put(None)
     try:
@@ -113,16 +121,18 @@ def Main():
                                             )
         Parser.RunParser()
         ParserArguments = Parser.GetArguments()
-
+        
+        
         # Initialise the rest of the objects.
-        MasterLogger = custom_logging.Logger(
+        MasterLogger = custom_logging.LoggingProcessSender(
             LogToConsole=ParserArguments.PrintToConsole,
             FileName=Configuration["Logging"]["LoggingFileName"],
             MaxLogs=Configuration["Logging"]["MaxLogs"],
             LoggingFormat=Configuration["Logging"]["LoggingFormat"],
             Dateformat=Configuration["Logging"]["DateFormat"],
             LoggingLevel="debug",
-            CursesObject=CursesObject
+            CursesObject=CursesObject,
+            ShutdownEvent = ShutdownEventObject
         )
 
         MasterLogger.info(_("{AppName} has been started.").format(

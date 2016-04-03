@@ -5,12 +5,12 @@
     This module defines functions and classes which implement a flexible
     event logging system for applications and libraries.
 '''
-
+import os
+import queue
 import logging
+import platform
 import logging.handlers
 import multiprocessing
-import os
-import platform
 
 # if python 2 is used
 try:
@@ -196,8 +196,8 @@ class Logger(logging.Logger):
         if not os.path.isdir(LoggingDictionary):
             os.mkdir(LoggingDictionary)
         
-        FilePath = LoggingDictionary + "/" + FileName
-        
+        FilePath = os.path.join(LoggingDictionary, FileName)
+
         # This file handler will see that there will be no problems with the
         # file size of the logs.
         # The file being written to is always app.log. 
@@ -206,17 +206,17 @@ class Logger(logging.Logger):
         # to app.log.2, app.log.3 etc. respectively.
         
         FileHandler = logging.handlers.RotatingFileHandler(
-            filename=FilePath,
-            mode='a',
+            filename = FilePath,
+            mode = 'a',
             # exacly 20 kilobites
-            maxBytes= (20 * 1024),
-            backupCount=MaxLogs
+            maxBytes = (20 * 1024),
+            backupCount = MaxLogs
         )
 
         Formatter = logging.Formatter(
             fmt = LoggingFormat,
-            datefmt=Dateformat,
-            style="%"
+            datefmt = Dateformat,
+            style = "%"
         )
 
         FileHandler.setFormatter(Formatter)
@@ -313,10 +313,9 @@ class Logger(logging.Logger):
                     https://docs.python.org/3.4/library/logging.html#logging.Formatter
         """
 
-        self.MLock.acquire()
-        super().debug(msg, *args, **kwargs)
-        self.MLock.release()
-    
+        with self.MLock:
+            super().debug(msg, *args, **kwargs)
+   
     def info(self, msg, *args, **kwargs):
         """
         This method extends the info method of the parent.
@@ -326,10 +325,9 @@ class Logger(logging.Logger):
         See debug for more information about the variables.
         """
         
-        self.MLock.acquire()
-        super().info(msg, *args, **kwargs)
-        self.MLock.release()
-    
+        with self.MLock:
+            super().info(msg, *args, **kwargs)
+  
     def warning(self, msg, *args, **kwargs):
         """
         This method extends the warning method of the parent.
@@ -339,10 +337,9 @@ class Logger(logging.Logger):
         See debug for more information about the variables.
         """
 
-        self.MLock.acquire()
-        super().warning(msg, *args, **kwargs)
-        self.MLock.release()
-        
+        with self.MLock:
+            super().warning(msg, *args, **kwargs)
+
     def error(self, msg, *args, **kwargs):
         """
         This method extends the warning method of the parent.
@@ -352,10 +349,9 @@ class Logger(logging.Logger):
         See debug for more information about the variables.
         """
         
-        self.MLock.acquire()
-        super().error(msg, *args, **kwargs)
-        self.MLock.release()
-    
+        with self.MLock:
+            super().error(msg, *args, **kwargs)
+        
     def critical(self, msg, *args, **kwargs):
         """
         This method extends the warning method of the parent.
@@ -365,10 +361,9 @@ class Logger(logging.Logger):
         See debug for more information about the variables.
         """
         
-        self.MLock.acquire()
-        super().critical(msg, *args, **kwargs)
-        self.MLock.release()
-    
+        with self.MLock:
+            super().critical(msg, *args, **kwargs)
+       
     def exception(self, msg, *args, **kwargs):
         """
         This method extends the exception method of the parent.
@@ -379,10 +374,9 @@ class Logger(logging.Logger):
         See debug for more information about the variables.
         """
         
-        self.MLock.acquire()
-        super().exception( msg, *args, **kwargs)
-        self.MLock.release()
-
+        with self.MLock:
+            super().exception( msg, *args, **kwargs)
+    
     def log(self, level, msg, *args, **kwargs):
         """
         This method extends the warning method of the parent.
@@ -397,14 +391,202 @@ class Logger(logging.Logger):
                 logs the entry to.
         """
         
-        self.MLock.acquire()
-        super().log(level, msg, *args, **kwargs)
-        self.MLock.release()
+        with self.MLock:
+            super().log(level, msg, *args, **kwargs)
+            
         
+class LoggingProcessServer(object):#multiprocessing.Process):
+    """
+    This class is a child class of the multiprocessing.Process.   
+    """    
+    def __init__(self,
+                LogToConsole=False,
+                FileName = "log.txt",
+                MaxLogs = 20,
+                LoggingFormat = ("[%(asctime)s] - [%(levelname)s] -"
+                                " %(message)s"),
+                Dateformat = "%d.%m.%Y %H:%M:%S",
+                LoggingLevel = "debug",
+                CursesObject = None, 
+                LoggingQueue = None,
+                ShutdownEvent = None):
+                
+        #super().__init__(None, name = "LoggingServer",)
+
+        # This variable holds the logging queue, in here will all 
+        # the request arrive to be processed by the logger.
+        self.LoggingQueue = LoggingQueue
+        self.ShutdownEvent = ShutdownEvent
+        
+        # This variable holds the logging object 
+        self.Logger = Logger(
+            LogToConsole=LogToConsole,
+            FileName = FileName,
+            MaxLogs = MaxLogs,
+            LoggingFormat = LoggingFormat,
+            Dateformat = Dateformat,
+            LoggingLevel = LoggingLevel,
+            CursesObject = CursesObject, 
+            )  
+            
+        self.run()
+            
+    def run(self):
+
+        while self.ShutdownEvent.is_set():
+            while not self.LoggingQueue.empty():
+                LoggingObject = None
+                try:
+                    LoggingObject = self.LoggingQueue.get_nowait()
+                except queue.Empty:
+                    pass
+                except:
+                    raise
+                if LoggingObject is not None:
+
+                    TypeOfLog = LoggingObject["Type"].upper()
+                    MessageOfLog = LoggingObject["Message"]
+                    
+                    if TypeOfLog == "DEBUG":
+                        self.Logger.debug(MessageOfLog)
+                    elif TypeOfLog == "INFO":
+                        self.Logger.info(MessageOfLog)
+                    elif TypeOfLog == "WARNING":
+                        self.Logger.warning(MessageOfLog)
+                    elif TypeOfLog == "ERROR":
+                        self.Logger.error(MessageOfLog)
+                    elif TypeOfLog == "LOG":
+                        self.Logger.log(MessageOfLog)
+                    else:
+                        raise TypeError
+                else:
+                    raise TypeError
+
+                    
+class LoggingProcessSender(object):
+    """
+    It is build to act as a proxi between the logging process and the other processes.
+    """
+    
+    def __init__(self, 
+                LogToConsole=False,
+                FileName = "log.txt",
+                MaxLogs = 20,
+                LoggingFormat = ("[%(asctime)s] - [%(levelname)s] -"
+                                " %(message)s"),
+                Dateformat = "%d.%m.%Y %H:%M:%S",
+                LoggingLevel = "debug",
+                CursesObject = None, 
+                ShutdownEvent = None):
+        
+        self.LoggingQueue = multiprocessing.Queue()
+        """ 
+        self.LoggingServer = LoggingProcessServer(
+            LogToConsole = LogToConsole,
+            FileName = FileName,
+            MaxLogs = MaxLogs,
+            LoggingFormat = LoggingFormat,
+            Dateformat = Dateformat,
+            LoggingLevel = LoggingLevel,
+            CursesObject = CursesObject, 
+            LoggingQueue = self.LoggingQueue,
+            ShutdownEvent = ShutdownEvent,
+            )
+        """
+        # starting logging server
+        self.LoggingServer = multiprocessing.Process(target = LoggingProcessServer, args = (LogToConsole, FileName,
+        MaxLogs, LoggingFormat, Dateformat, LoggingLevel, CursesObject, self.LoggingQueue, ShutdownEvent,))
+        
+        self.LoggingServer.start()
+    
+    def _GetSubProcessPid_(self):
+        """
+        This methode will return the subprocess object.
+        """
+        return self.LoggingServer
+    
+    def _InsetIntoQueue_(self, type, msg):
+        """
+        This method will send all the logging messages to the queue
+        where they will arrive at the logging process.
+        """
+        Directory = {
+            "Type": type,
+            "Message": msg,
+        }
+            
+        self.LoggingQueue.put_nowait(Directory)
+
+    def debug(self, msg):
+        """
+        This message act's as a buffer for the debug type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("DEBUG", msg)
+        
+    def info(self, msg):
+        """
+        This message act's as a buffer for the info type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("INFO", msg)
+        
+    def warning(self, msg):
+        """
+        This message act's as a buffer for the warning type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("WARNING", msg)
+        
+    def error(self, msg):
+        """
+        This message act's as a buffer for the error type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("ERROR", msg)
+        
+    def critical(self, msg):
+        """
+        This message act's as a buffer for the critical type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("CRITICAL", msg)
+        
+    def exception(self, msg):
+        """
+        This message act's as a buffer for the exceptiontype logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("EXCEPTION", msg)
+        
+    def log(self, msg):
+        """
+        This message act's as a buffer for the log type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("LOG", msg)
         
 if __name__ == '__main__':
-    log_to = False
-    c = Logger(True)
-    c.info("Hallo?")
-    c.error("Test")
+    import multiprocessing.managers
+    print("Online")
+    log_to = True
+    c = Logger(LogToConsole = log_to)
 
+    ShutdownEvent = multiprocessing.Event()
+    ShutdownEvent.set()
+    
+    c = LoggingProcessSender(LogToConsole = log_to, ShutdownEvent = ShutdownEvent)
+    process = c._GetSubProcessPid_()
+    for i in range(2):
+        c.info("Hallo?")
+        c.error("Test")
+    import time
+    time.sleep(2)
+    for i in range(20):
+        c.info("Hallo?")
+        c.error("Test")
+    time.sleep(0.1)
+    print("Stop in the name of love")
+    ShutdownEvent.clear()
+    process.join()
+    print("offline")

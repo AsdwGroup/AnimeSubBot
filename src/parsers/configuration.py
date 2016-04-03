@@ -146,7 +146,7 @@ class ConfigurationParser(configparser.RawConfigParser):
             ("LoggingFileName", "log.txt"),
             ("MaxLogs", 20),
             ("LoggingFormat", "[%(asctime)s] - [%(levelname)s] - %(message)s"),
-            ("DateFormat", "%d.%M.%Y %H:%M:%S")
+            ("DateFormat", "%d.%m.%Y %H:%M:%S")
         ))
 
         # Writes the default configuration in to the correct file

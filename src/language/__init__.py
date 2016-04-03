@@ -7,8 +7,8 @@ This file contains a function to create the translation object.
 In this file the function _() or self._() will be initialised.
 """
 
-import gettext
 
+import gettext
 
 def CreateTranslationObject(
                             Languages = ("de_DE", "en_US"),

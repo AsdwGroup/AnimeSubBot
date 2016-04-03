@@ -16,7 +16,7 @@ import custom_logging
 import messages.message
 import language  # imports the _() function! (the translation feature)
 
-class TelegramApi(multiprocessing.Process):
+class TelegramApi(Object):
     """
     This class is responsible for contacting the telegram bot servers.
     
@@ -71,7 +71,7 @@ class TelegramApi(multiprocessing.Process):
     def __init__(self,
                  ApiToken,
                  RequestTimer,   
-                 **OptionalObjects
+                 OptionalObjects = None
                  ):
 
         """
@@ -123,8 +123,6 @@ class TelegramApi(multiprocessing.Process):
                         The default value is False.
                         
         """
-        
-        multiprocessing.process.__init__()
         
         self.ApiToken = ApiToken
         self.BotApiUrl = TelegramApi.BASE_URL + self.ApiToken
@@ -416,32 +414,130 @@ class TelegramApi(multiprocessing.Process):
         
         raise NotImplementedError
 
-class TestTelegramApi(Object):
-    
-    def 
-        IsTest
+class TelegramApiServer(multiprocessing.Process):
+
+    def __init__(self,
+                 Name 
+                 ApiToken,
+                 RequestTimer,
+                 InputQueue,
+                 OutputQueue,
+                 ShutDownEvent,
+                 OptionalObjects = None):
+                 
+        super().__init__(name = Name)
+        self.Name = Name
+        self.InputQueue = InputQueue
+        self.OutputQueue = OutputQueue
+        self.ShutDownEvent = ShutDownEvent
         
-class OutputToTelegram(TelegramApi):
+        self.TelegramApi = TelegramApi(
+                 ApiToken = ApiToken,
+                 RequestTimer = RequestTimer,   
+                 OptionalObjects = OptionalObjects
+        )
+        
+    def run(self):
+        raise NotImplementedError
+        
+class InputTelegramApiServer(TelegramApiServer):
+    
+    def __init__(self,
+                 Name 
+                 ApiToken,
+                 RequestTimer,
+                 InputQueue,
+                 OutputQueue,
+                 ShutDownEvent,
+                 OptionalObjects = None):
+                 
+        super().__init__(name = Name)
+        self.Name = Name
+        self.InputQueue = InputQueue
+        self.OutputQueue = OutputQueue
+        self.ShutDownEvent = ShutDownEvent
+        self.TelegramApi = TelegramApi(
+                 ApiToken = ApiToken,
+                 RequestTimer = RequestTimer,   
+                 OptionalObjects = OptionalObjects
+        )
+        
+    def run(self):
+        pass
+
+class OutputTelegramApiServer(TelegramApiServer):
+    
+        
+class TelegramApiServerComunicator(object):
+    def __init__(self,
+                 ApiToken,
+                 RequestTimer,
+                 ShutDownEvent,
+                 OptionalObjects
+                 ):
+                 
+        self.InputQueue = multiprocessing.Queue()
+        self.OutputQueue = multiprocessing.Queue()  
+        
+        self.TelegramApiServer = TelegramApiServer(
+            Name = "InputTelegramApiServer",
+            ApiToken = ApiToken,
+            RequestTimer = RequestTimer,
+            InputQueue = self.InputQueue,
+            OutputQueue = self.OutputQueue,
+            ShutDownEvent = ShutDownEvent,
+            OptionalObjects = OptionalObjects
+        )         
+        raise NotImplementedError
+    
+    def _GetSubProcessPid_(self):
+        """
+        This methode will return the subprocess object.
+        """
+        return self.TelegramApiServer
+    
+    def _SendToServer_(self, Command, ):
+        self.InputQueue.put()
+        
+class OutputToTelegram(TelegramApiServerComunicator):
 
     def __init__(self,
                  ApiToken,
                  RequestTimer,
-                 OutputQueue,
-                 **OptionalObjects
-                 ):
+                 ShutDownEvent,
+                 OptionalObjects = None):
+                 
+        self.InputQueue = multiprocessing.Queue()
+        self.OutputQueue = multiprocessing.Queue()    
+        self.TelegramApiServer = TelegramApiServer(
+            Name = "OutputTelegramApiServer",
+            ApiToken = ApiToken,
+            RequestTimer = RequestTimer,
+            InputQueue = self.InputQueue,
+            OutputQueue = self.OutputQueue,
+            ShutDownEvent = ShutDownEvent,
+            OptionalObjects = OptionalObjects
+        )
         raise NotImplementedError
-        
-class GetRequestsFromTelegram(TelegramApi):
+
+class GetRequestsFromTelegram(TelegramApiServerComunicator):
      
     def __init__(self,
                  ApiToken,
                  RequestTimer,
-                 InputQueue,
-                 **OptionalObjects
+                 ShutDownEvent,
+                 OptionalObjects
                  ):
-                 
-        raise NotImplementedError
         
+        super.__init__(
+            Name = "InputTelegramApiServer",
+            ApiToken = ApiToken,
+            RequestTimer = RequestTimer,
+            ShutDownEvent = ShutDownEvent,
+            OptionalObjects = OptionalObjects
+        )             
+
+    
 if __name__ == "__main__":
     print('online')
     import pprint
