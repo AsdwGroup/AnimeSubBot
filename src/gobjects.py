@@ -33,4 +33,4 @@ __status__ = "Development"
 #: 
 __AppName__ = "AnimeSubBot"
 #: 
-__hosted__ = "https://github.com/apmzideas/BetterPollBot"
+__hosted__ = "https://github.com/TheRedFireFox/AnimeSubBot"

@@ -173,6 +173,10 @@ class Logger(logging.Logger):
                     DEBUG         10
                     NOTSET        0
                     ========  ============= 
+             
+            CursesObject                ``object``
+                holds the possible curses object needed to log to the screen
+                on linux os.
                     
         """
         PossibleLoggingLevel = {"NOTSET": logging.NOTSET,
@@ -395,7 +399,7 @@ class Logger(logging.Logger):
             super().log(level, msg, *args, **kwargs)
             
         
-class LoggingProcessServer(object):#multiprocessing.Process):
+class LoggingProcessServer(multiprocessing.Process):
     """
     This class is a child class of the multiprocessing.Process.   
     """    
@@ -410,8 +414,85 @@ class LoggingProcessServer(object):#multiprocessing.Process):
                 CursesObject = None, 
                 LoggingQueue = None,
                 ShutdownEvent = None):
+        
+        """
+        An init function in which the logging data and multiprocess access is initialied.
+        
+        Variables:
+            LogToConsole                  ``boolean``
+                if the logger shall log to console and to file or
+                just to the file
                 
-        #super().__init__(None, name = "LoggingServer",)
+            FileName                      ``string``
+                the file to log to
+                
+            MaxLogs                       ``integer``
+                the maximal amout of old logs are written.
+                Example:
+                
+                .. code-block:: python
+                
+                    log.txt\n
+                    log.txt.1\n
+                    log.txt.2\n
+                    ...
+                    
+            LoggingFormat                 ``string``
+                the format of the string that has to be logged
+                
+                Example:
+                
+                    ``%(asctime)s`` 
+                        Human-readable time when the LogRecord was 
+                        created. By default this is of the form 
+                        ``2003-07-08 16:49:45,896`` (the numbers after
+                        the comma are millisecond portion of the time).
+                    ``%(levelname)s``
+                        Text logging level for the message ('DEBUG', 
+                        'INFO', 'WARNING', 'ERROR', 'CRITICAL').
+                    
+                For the full list of possible attributes:
+                    https://docs.python.org/3/library/logging.html#logrecord-attributes
+            
+            Dateformat                  ``string``
+                configures the date string format
+                
+                Example:
+                
+                    ``%Y-%m-%d %H:%M:%S``
+                
+                For the full lsit of possibles attributes:
+                    https://docs.python.org/3.4/library/time.html#time.strftime
+                
+            LoggingLevel                ``string``
+                set's the minimum logging value
+                Explanation:
+                    
+                    ========  =============
+                    Level     Numeric value
+                    ========  =============
+                    CRITICAL      50
+                    ERROR         40
+                    WARNING       30
+                    INFO          20
+                    DEBUG         10
+                    NOTSET        0
+                    ========  =============  
+            
+            CursesObject                ``object``
+                holds the possible curses object needed to log to the screen
+                on linux os.        
+            
+            LoggingQueue                ``object``
+                holds the multiprocessing.Queue object needed for the subprocesses to interact 
+                with the logging process.
+                
+            ShutdownEvent               ``object``
+                holdes the multiprocessing.Event object needed for the shutdown processes 
+                of the system.
+        """
+        
+        super().__init__(None, name = "LoggingServer",)
 
         # This variable holds the logging queue, in here will all 
         # the request arrive to be processed by the logger.
@@ -419,20 +500,39 @@ class LoggingProcessServer(object):#multiprocessing.Process):
         self.ShutdownEvent = ShutdownEvent
         
         # This variable holds the logging object 
-        self.Logger = Logger(
-            LogToConsole=LogToConsole,
-            FileName = FileName,
-            MaxLogs = MaxLogs,
-            LoggingFormat = LoggingFormat,
-            Dateformat = Dateformat,
-            LoggingLevel = LoggingLevel,
-            CursesObject = CursesObject, 
-            )  
-            
-        self.run()
+     
+        self.Logger = None
+        
+        # This variable holds all the data needed for the logger instance.
+        self.Data = {
+            "LogToConsole":LogToConsole,
+            "FileName": FileName,
+            "MaxLogs": MaxLogs,
+            "LoggingFormat": LoggingFormat,
+            "Dateformat": Dateformat,
+            "LoggingLevel": LoggingLevel,
+            "CursesObject": CursesObject,
+        }
             
     def run(self):
-
+        """
+        This methode overrides the parent method.
+        
+        In this methode the logger will be initialied
+        and the queue will be called. If there will be 
+        work to do the system will work.
+        """
+    
+        self.Logger = Logger(
+            LogToConsole=self.Data["LogToConsole"],
+            FileName = self.Data["FileName"],
+            MaxLogs = self.Data["MaxLogs"],
+            LoggingFormat = self.Data["LoggingFormat"],
+            Dateformat = self.Data["Dateformat"],
+            LoggingLevel = self.Data["LoggingLevel"],
+            CursesObject = self.Data["CursesObject"], 
+            ) 
+            
         while self.ShutdownEvent.is_set():
             while not self.LoggingQueue.empty():
                 LoggingObject = None
@@ -479,8 +579,83 @@ class LoggingProcessSender(object):
                 CursesObject = None, 
                 ShutdownEvent = None):
         
+        """
+        An init function in which the logging data and multiprocess access is initialied.
+        
+        Variables:
+            LogToConsole                  ``boolean``
+                if the logger shall log to console and to file or
+                just to the file
+                
+            FileName                      ``string``
+                the file to log to
+                
+            MaxLogs                       ``integer``
+                the maximal amout of old logs are written.
+                Example:
+                
+                .. code-block:: python
+                
+                    log.txt\n
+                    log.txt.1\n
+                    log.txt.2\n
+                    ...
+                    
+            LoggingFormat                 ``string``
+                the format of the string that has to be logged
+                
+                Example:
+                
+                    ``%(asctime)s`` 
+                        Human-readable time when the LogRecord was 
+                        created. By default this is of the form 
+                        ``2003-07-08 16:49:45,896`` (the numbers after
+                        the comma are millisecond portion of the time).
+                    ``%(levelname)s``
+                        Text logging level for the message ('DEBUG', 
+                        'INFO', 'WARNING', 'ERROR', 'CRITICAL').
+                    
+                For the full list of possible attributes:
+                    https://docs.python.org/3/library/logging.html#logrecord-attributes
+            
+            Dateformat                  ``string``
+                configures the date string format
+                
+                Example:
+                
+                    ``%Y-%m-%d %H:%M:%S``
+                
+                For the full lsit of possibles attributes:
+                    https://docs.python.org/3.4/library/time.html#time.strftime
+                
+            LoggingLevel                ``string``
+                set's the minimum logging value
+                Explanation:
+                    
+                    ========  =============
+                    Level     Numeric value
+                    ========  =============
+                    CRITICAL      50
+                    ERROR         40
+                    WARNING       30
+                    INFO          20
+                    DEBUG         10
+                    NOTSET        0
+                    ========  =============  
+            
+            CursesObject                ``object``
+                holds the possible curses object needed to log to the screen
+                on linux os.        
+                
+            ShutdownEvent               ``object``
+                holdes the multiprocessing.Event object needed for the shutdown processes 
+                of the system.
+        """
+        
+        # adding a logging queue
         self.LoggingQueue = multiprocessing.Queue()
-        """ 
+        
+        # starting logging server
         self.LoggingServer = LoggingProcessServer(
             LogToConsole = LogToConsole,
             FileName = FileName,
@@ -492,10 +667,6 @@ class LoggingProcessSender(object):
             LoggingQueue = self.LoggingQueue,
             ShutdownEvent = ShutdownEvent,
             )
-        """
-        # starting logging server
-        self.LoggingServer = multiprocessing.Process(target = LoggingProcessServer, args = (LogToConsole, FileName,
-        MaxLogs, LoggingFormat, Dateformat, LoggingLevel, CursesObject, self.LoggingQueue, ShutdownEvent,))
         
         self.LoggingServer.start()
     
@@ -585,7 +756,7 @@ if __name__ == '__main__':
     for i in range(20):
         c.info("Hallo?")
         c.error("Test")
-    time.sleep(0.1)
+    #time.sleep(0.01)
     print("Stop in the name of love")
     ShutdownEvent.clear()
     process.join()

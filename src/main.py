@@ -99,9 +99,7 @@ def Main():
     
     # This variable holds all the processes
     Processes = []
-    
-    Queue = multiprocessing.Queue()
-    Queue.put(None)
+
     try:
 
         # Create the configuration class and read the configuration class.
@@ -144,8 +142,8 @@ def Main():
                                     " system!")
                                   )
             raise SystemExit
-
-        TelegramObject = telegram.TelegramApi(
+        
+        TestTelegramObject = telegram.TelegramApi(
             ApiToken=ParserArguments.ApiToken,
             RequestTimer=ParserArguments.Time,
             LoggingObject=MasterLogger,
@@ -274,7 +272,7 @@ def Main():
                     pass
 
             # Process the requests
-
+            """
             # Get the updates from the telegram serves.
             if SqlObject.DetectConnection() is True:
                 # check if queue has something for us in it
@@ -329,9 +327,9 @@ def Main():
                 time.sleep((ParserArguments.Time))
             else:
                 time.sleep((TelegramObject.RequestTimer / 1000))
-
+        """
     finally:
-        Queue.close()
+
         if platform.system() != "Windows":
             # clean after the curses module
             time.sleep(1)

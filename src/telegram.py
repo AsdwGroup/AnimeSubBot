@@ -71,7 +71,7 @@ class TelegramApi(Object):
     def __init__(self,
                  ApiToken,
                  RequestTimer,   
-                 OptionalObjects = None
+                 **OptionalObjects = None
                  ):
 
         """
@@ -89,7 +89,7 @@ class TelegramApi(Object):
                 "BetterPollBot/0.1 (Windows; 8; 6.2.9200)"\\
                 " Python-urllib/('v3.4.3:9b73f1c3e601', "\\
                 "'Feb 24 2015 22:43:06') "\\
-                "from https://github.com/apmzideas/BetterPollBot"
+                "from https://github.com/TheRedFireFox/AnimeSubBot"
                 }
         
         Variables:
@@ -125,7 +125,7 @@ class TelegramApi(Object):
         """
         
         self.ApiToken = ApiToken
-        self.BotApiUrl = TelegramApi.BASE_URL + self.ApiToken
+        self.BotApiUrl = "{}{}".format(TelegramApi.BASE_URL, self.ApiToken)
         
         # Predefining attribute so that it later can be used for evil.
         self.LanguageObject = None
@@ -136,13 +136,15 @@ class TelegramApi(Object):
         # They are only used when the connection to telegram is being tested (at the start of the program).
         self.IsTest = False
         self.TestQueue = None
-        
+        self.Connection = True
         # This timer is needed to see if there is a problem with the telegram
         # server. If so the interval should be bigger (1 min instead given
         # time 1 sec)
         self.RequestTimer = RequestTimer
         self.GivenRequestTimer = RequestTimer
-
+        if "OptionalObjects" in OptionalObjects:
+            OptionalObjects = OptionalObjects["OptionalObjects"]
+            
         if "LanguageObject" in OptionalObjects:
             self.LanguageObject = OptionalObjects["LanguageObject"]
         else:
@@ -150,6 +152,7 @@ class TelegramApi(Object):
                 language.CreateTranslationObject()
             )
 
+            
         if "LoggingObject" in OptionalObjects:
             self.LoggingObject = OptionalObjects["LoggingObject"]
         else:
@@ -160,7 +163,6 @@ class TelegramApi(Object):
         
         if "IsTest" in OptionalObjects:
             self.IsTest = True
-            self.TestQueue = OptionalObjects["IsTest"]
         
         # Here we are initialising the function for the translations.
         self._ = self.LanguageObject.gettext
@@ -423,7 +425,7 @@ class TelegramApiServer(multiprocessing.Process):
                  InputQueue,
                  OutputQueue,
                  ShutDownEvent,
-                 OptionalObjects = None):
+                 **OptionalObjects = None):
                  
         super().__init__(name = Name)
         self.Name = Name
@@ -466,7 +468,6 @@ class InputTelegramApiServer(TelegramApiServer):
         pass
 
 class OutputTelegramApiServer(TelegramApiServer):
-    
         
 class TelegramApiServerComunicator(object):
     def __init__(self,
