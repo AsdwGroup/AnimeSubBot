@@ -16,7 +16,7 @@ import custom_logging
 import messages.message
 import language  # imports the _() function! (the translation feature)
 
-class TelegramApi(Object):
+class TelegramApi(object):
     """
     This class is responsible for contacting the telegram bot servers.
     
@@ -71,7 +71,7 @@ class TelegramApi(Object):
     def __init__(self,
                  ApiToken,
                  RequestTimer,   
-                 **OptionalObjects = None
+                 **OptionalObjects
                  ):
 
         """
@@ -412,20 +412,20 @@ class TelegramApi(Object):
         
         This function will raise an error, since this class should not be called.
         """
-        if self.IsTest
+        #if self.IsTest
         
         raise NotImplementedError
 
 class TelegramApiServer(multiprocessing.Process):
 
     def __init__(self,
-                 Name 
+                 Name, 
                  ApiToken,
                  RequestTimer,
                  InputQueue,
                  OutputQueue,
                  ShutDownEvent,
-                 **OptionalObjects = None):
+                 **OptionalObjects):
                  
         super().__init__(name = Name)
         self.Name = Name
@@ -445,13 +445,13 @@ class TelegramApiServer(multiprocessing.Process):
 class InputTelegramApiServer(TelegramApiServer):
     
     def __init__(self,
-                 Name 
+                 Name,
                  ApiToken,
                  RequestTimer,
                  InputQueue,
                  OutputQueue,
                  ShutDownEvent,
-                 OptionalObjects = None):
+                 OptionalObjects):
                  
         super().__init__(name = Name)
         self.Name = Name
@@ -468,6 +468,7 @@ class InputTelegramApiServer(TelegramApiServer):
         pass
 
 class OutputTelegramApiServer(TelegramApiServer):
+        pass
         
 class TelegramApiServerComunicator(object):
     def __init__(self,
@@ -506,7 +507,7 @@ class OutputToTelegram(TelegramApiServerComunicator):
                  ApiToken,
                  RequestTimer,
                  ShutDownEvent,
-                 OptionalObjects = None):
+                 **OptionalObjects):
                  
         self.InputQueue = multiprocessing.Queue()
         self.OutputQueue = multiprocessing.Queue()    
@@ -527,7 +528,7 @@ class GetRequestsFromTelegram(TelegramApiServerComunicator):
                  ApiToken,
                  RequestTimer,
                  ShutDownEvent,
-                 OptionalObjects
+                 **OptionalObjects
                  ):
         
         super.__init__(
