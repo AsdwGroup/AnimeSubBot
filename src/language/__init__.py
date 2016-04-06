@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-This file contains a function to create the translation object.
+This file contains a class to create the translation object.
 
 In this file the function _() or self._() will be initialised.
 """
@@ -32,9 +32,9 @@ class Language(object):
         This function returns a gettext object.
 
         Variables:
-            Languages            array of string
+            Languages            ``array of strings``
                 contains the language string
-            Localedir            string
+            Localedir            ``string``
                 contains the Language location
         """
         if isinstance(Languages, str):
@@ -49,8 +49,10 @@ class Language(object):
         return LanguageObject
 
 if __name__ == "__main__":
-    i = CreateTranslationObject("en_US",Localedir="../language")
-    _ = i.gettext
+    i = Language()
+    
+    LanguageObject = i.CreateTranslationObject("en_US",Localedir="../language")
+    _ = LanguageObject.gettext
     print(_("YES")=="JA")
     print(_("YES"), "JA")
 
