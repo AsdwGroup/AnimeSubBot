@@ -29,56 +29,79 @@ class MessageToBeSend(object):
     def __init__(
                  self, 
                  ToChatId,
-                 Text=None,
+                 Text = None,
+                 ParseMode = None,
                  DisableWebPagePreview=False,
+                 DisableNotification = False,
                  ReplyToMessageId=None,
-                Logger = None
                  ):
         """
         The init of the class.
         
         The Api defines the following parameters:
-       +----------------------------+-----------+------------+ 
-       | Parameters                 |   Type    |  Required  |
-       +============================+===========+============+ 
-       |**chat_id**                 |  integer  |   Yes      |  
-       |  Unique identifier for     |           |            |  
-       |  the message recipient     |           |            | 
-       |  (User or GroupChat id)    |           |            |
-       +----------------------------+-----------+------------+     
-       |**text**                    |   string  |     Yes    |      
-       |  Text of the message       |           |            |
-       |  to be sent                |           |            |
-       +----------------------------+-----------+------------+     
-       |**disable_web_page_preview**|   boolean |  Optional  |     
-       |  Disables link previews    |           |            |
-       |  for links in this message |           |            |
-       +----------------------------+-----------+------------+     
-       |**reply_to_message_id**     |  integer  |  Optional  |     
-       |  if the message is a       |           |            |  
-       |  reply, ID of the          |           |            |
-       |  original message          |           |            | 
-       +----------------------------+-----------+------------+     
-       |**reply_markup**            |           |            |
-       |**ReplyKeyboardMarkup**     |           |            |
-       |**or**                      |           |            |
-       |**ReplyKeyboardHide**       |           |            |
-       |**or**                      |           |            |  
-       |**ForceReply**              |    string |  Optional  |   
-       |  Additional interface      |           |            |
-       |  options. A JSON-serialized|           |            |
-       |  object for a custom reply |           |            | 
-       |  keyboard, instructions to |           |            |   
-       |  hide keyboard or to force |           |            |
-       |  a reply from the user.    |           |            |
-       +----------------------------+-----------+------------+
+           +----------------------------+-----------+------------+ 
+           | Parameters                 |   Type    |  Required  |
+           +============================+===========+============+ 
+           |**chat_id**                 |Integer or |Yes         |  
+           |  Unique identifier for     |String     |            |  
+           |  the message recipient     |           |            | 
+           |  (User or GroupChat id)    |           |            |
+           +----------------------------+-----------+------------+     
+           |**text**                    |String     |Yes         |      
+           |  Text of the message       |           |            |
+           |  to be sent                |           |            |
+           +----------------------------+-----------+------------+
+           |**parse_mode**              |String     |Optional    |
+           |Send Markdown or HTML, if   |           |            |
+           |you want Telegram apps to   |           |            |
+           |show bold, italic,          |           |            |
+           |fixed-width text or inline  |           |            |
+           |URLs in your bot's message. |           |            |
+           +----------------------------+-----------+------------+ 
+           |**disable_web_page_preview**|Boolean    |Optional    |     
+           |  Disables link previews    |           |            |
+           |  for links in this message |           |            |
+           +----------------------------+-----------+------------+ 
+           |**disable_notification**    |Boolean    |Optional    |
+           |Sends the message silently. |           |            |
+           |iOS users will not receive a|           |            |
+           |notification, Android users |           |            |
+           |will receive a notification |           |            |
+           |with no sound. Other apps   |           |            |
+           |coming soon.                |           |            |
+           +----------------------------+-----------+------------+        
+           |**reply_to_message_id**     |integer    |Optional    |     
+           |  if the message is a       |           |            |  
+           |  reply, ID of the          |           |            |
+           |  original message          |           |            | 
+           +----------------------------+-----------+------------+     
+           |**reply_markup**            |string     |Optional    |
+           |**ReplyKeyboardMarkup**     |           |            |
+           |**or**                      |           |            |
+           |**ReplyKeyboardHide**       |           |            |
+           |**or**                      |           |            |  
+           |**ForceReply**              |           |            |    
+           |  Additional interface      |           |            |
+           |  options. A JSON-serialized|           |            |
+           |  object for a custom reply |           |            | 
+           |  keyboard, instructions to |           |            |   
+           |  hide keyboard or to force |           |            |
+           |  a reply from the user.    |           |            |
+           +----------------------------+-----------+------------+
+       
         Variables:
             ToChatId              ``integer``
                 contains the receiver of the message
             
-            Text                  ``string``
+            Text                  ``None or string``
                 contains the text to be send to the api
             
+            ParseMode             ``None or string``
+                defines if the text shall be interpreted by Markdown or
+                HTML
+            DisableNotification   ``boolean``
+                defines if a user shall be notificed by the message
+                
             DisableWebPagePreview ``boolean``
                 defines if a web page should be preloaded
             
@@ -86,18 +109,19 @@ class MessageToBeSend(object):
                 if this is an id the message will a reply to the message
                 id given
                 read more:
-                    https://telegram.org/blog/replies-mentions-hashtags
+                    https://telegram.org/blog/replies-mentions-hashtags      
                     
         """
+        
         self.ToChatId = ToChatId
         self.Text = Text
+        self.ParseMode = ParseMode
         self.DisableWebPagePreview = DisableWebPagePreview
+        self.DisableNotification = DisableNotification
         self.ReplyToMessageId = ReplyToMessageId
         self.ReplyMarkup = {}
-
         
-    def ReplyKeyboardMarkup(
-                            self, 
+    def ReplyKeyboardMarkup(self, 
                             Keyboard,
                             ResizeKeyboard = False, 
                             OneTimeKeyboard = False, 
@@ -171,9 +195,7 @@ class MessageToBeSend(object):
         if Selective and not "selective"  in self.ReplyMarkup:
             self.ReplyMarkup["selective"] = Selective
 
-
-    def ReplyKeyboardHide(
-                          self, 
+    def ReplyKeyboardHide(self, 
                           Selective=False
                           ):
         """
@@ -199,8 +221,7 @@ class MessageToBeSend(object):
         if Selective and "selective" not in self.ReplyMarkup:
             self.ReplyMarkup["selective"] = Selective
             
-    def ForceReply(
-                   self,
+    def ForceReply(self,
                    Selective=False
                    ):
         """
@@ -239,15 +260,27 @@ class MessageToBeSend(object):
         DataToBeSend = { 
                         "chat_id": self.ToChatId,
                         }
+                        
         if self.Text != None:
             DataToBeSend["text"] = bytes(self.Text.encode("utf-8"))
-        if self.DisableWebPagePreview:
+        
+        if self.ParseMode is not None:
+            DataToBeSend["parse_mode"] = self.ParseMode
+        
+        if self.DisableWebPagePreview is True:
             DataToBeSend["disable_web_page_preview"] = True
+        
+        if self.DisableNotification is True:
+            DataToBeSend["disable_notification"] = True
+        
         if self.ReplyToMessageId is not None:
             DataToBeSend["reply_to_message_id"] = self.ReplyToMessageId
+            
         if self.ReplyMarkup != {}:
             DataToBeSend["reply_markup"] = json.JSONEncoder(
                 separators=(',', ':')).encode(self.ReplyMarkup)
             
         return DataToBeSend
     
+if __name__ == "__main__":
+    raise NotImplementedError

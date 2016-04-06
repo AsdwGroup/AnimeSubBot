@@ -737,27 +737,7 @@ class LoggingProcessSender(object):
         """
         self._InsetIntoQueue_("LOG", msg)
         
+   
 if __name__ == '__main__':
-    import multiprocessing.managers
-    print("Online")
-    log_to = True
-    c = Logger(LogToConsole = log_to)
-
-    ShutdownEvent = multiprocessing.Event()
-    ShutdownEvent.set()
-    
-    c = LoggingProcessSender(LogToConsole = log_to, ShutdownEvent = ShutdownEvent)
-    process = c._GetSubProcessPid_()
-    for i in range(2):
-        c.info("Hallo?")
-        c.error("Test")
-    import time
-    time.sleep(2)
-    for i in range(20):
-        c.info("Hallo?")
-        c.error("Test")
-    #time.sleep(0.01)
-    print("Stop in the name of love")
-    ShutdownEvent.clear()
-    process.join()
-    print("offline")
+    # for testing please use the files in the test folder
+    raise NotImplementedError

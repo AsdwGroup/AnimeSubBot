@@ -9,29 +9,44 @@ In this file the function _() or self._() will be initialised.
 
 
 import gettext
+import multiprocessing
 
-def CreateTranslationObject(
-                            Languages = ("de_DE", "en_US"),
-                            Localedir="language",
-                            ):
+class Language(object):
     """
-    This function returns a gettext object.
-
-    Variables:
-        Languages            array of string
-            contains the language string
-        Localedir            string
-            contains the Language location
+    The purpose of this class is to keep the CreateTranslationObject 
+    function multiprocessing safe.
     """
-    if type(Languages) == type('str'):
-        Languages = [Languages]
+    
+    def __init__(self):
+        """
+        Variables:
+            \-
+        """
+        self.RLock = multiprocessing.RLock() 
 
-    LanguageObject = gettext.translation("Telegram",
-                               localedir=Localedir,
-                               languages=Languages
-                               )
+    def CreateTranslationObject(
+                                Languages = ("de_DE", "en_US"),
+                                Localedir="language",
+                                ):
+        """
+        This function returns a gettext object.
 
-    return LanguageObject
+        Variables:
+            Languages            array of string
+                contains the language string
+            Localedir            string
+                contains the Language location
+        """
+        if type(Languages) == type('str'):
+            Languages = [Languages]
+        
+        with self.RLock:
+            LanguageObject = gettext.translation("Telegram",
+                                       localedir=Localedir,
+                                       languages=Languages
+                                       )
+
+        return LanguageObject
 
 if __name__ == "__main__":
     i = CreateTranslationObject("en_US",Localedir="../language")

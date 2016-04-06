@@ -1,6 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+# standard lib
+import re
+
 # The custom modules
 import gobjects
 import custom_logging
@@ -12,9 +15,11 @@ from . import message
 from . import emojis
 
 
-class MessageProcessor(object):
+class MessagePreProcessor(object):
     """
-    This class is used as the user message analyser.
+    This class is used as the user message preanalyser.
+    This class will primary be used so that the code will
+    be easily reusable.
     
     The MessageObject will only contains a single message object, 
     so that this class will be thread save and so that we can run
@@ -389,7 +394,25 @@ class MessageProcessor(object):
             Where=Where,
             Data=Data
         )[0]["Internal_User_Id"]
-
+        
+    def Chunker(ListOfObjects, SizeOfChunks):
+        """
+        Yield successive n-sized (SizeOfChunks) chunks from the list (ListOfObjects).
+        
+        This methode will not return anything, but act as a generator object.
+        
+        Variables:
+            ListOfObjects               ``generator, list or string``
+                This variable holds all the stuff to split.
+            
+            SizeOfChunks                ``integer``
+                Holds the size of the chunks to turn the ListOfObjects 
+                into.
+                
+        """
+        for i in range(0, len(ListOfObjects), SizeOfChunks):
+            yield ListOfObjects[i:i+SizeOfChunks]
+            
     def GroupExists(self):
         """
         This method checks if the group exists or not.
@@ -469,10 +492,11 @@ class MessageProcessor(object):
             /Command option
             
         Variables:
-            Command                       ``string``
-                this is the used command with the option
+            Command                     ``string``
+                This is the used command with the option, that was 
+                used.
                 
-            LastUsedId                    ``integer``
+            LastUsedId                  ``integer``
                 This is the last used id, it can be every id, depending 
                 the situation.
         """
@@ -562,7 +586,7 @@ class MessageProcessor(object):
         been an error.
         
         Variables:
-            Language                      string
+            Language                    ``string``
                 should be a string with the new language file
         """
 
@@ -601,91 +625,40 @@ class MessageProcessor(object):
             )
             return False
 
-    def AddPoll(self, ):
-        """ 
-        This method adds the new poll to the system.
         
-        First check if that poll exists, a poll name can only be 
-        used once per person so that will be no confusion between 
-        multiple poll per person. It will return the new internal poll
-        id, if the process has been a success and the poll name is 
-        unique otherwise it returns a False.
-        
-        Variables:
-            \-
-        """
-        IfExists = self.SqlObject.ExecuteTrueQuery(
-            self.SqlObject.CreateCursor(Dictionary=False),
-            Query=("SELECT EXISTS(SELECT 1 FROM Poll_Table WHERE `Poll_Name`"
-                   " = %(PollName)s AND `Master_User_Id` = %(UserID)s);"
-                   ),
-            Data={
-                "PollName": self.Text,
-                "UserID": self.InternalUserId
-            }
-        )[0][0]
-        if IfExists == False:
-            import hashlib
-            self.SqlObject.InsertEntry(
-                self.SqlCursor,
-                TableName="Poll_Table",
-                Columns={
-                    "Poll_Name": self.Text,
-                    "Master_User_Id": self.InternalUserId
-                },
-                AutoCommit=False)
-            # self.SqlObject.Commit(self.SqlCursor)
-            Id = self.SqlObject.GetLastRowId(self.SqlCursor)
-
-            # get last Id for the md5-hash needed for the talk
-            Hash = hashlib.md5()
-            Hash.update(str(Id).encode(encoding='utf_8', errors='strict'))
-            Hash = Hash.hexdigest().encode("utf-8")
-
-            self.SqlObject.UpdateEntry(
-                self.SqlCursor,
-                TableName="Poll_Table",
-                Columns={
-                    "External_Poll_Id": Hash,
-                },
-                Where=[["Internal_Poll_Id", Id]],
-                Autocommit=False
-            )
-
-            self.SqlObject.Commit(self.SqlCursor)
-            return Id
-        else:
-            return False
-
-    def GetUserPolls(self):
-        """ 
-        Get all user polls and return them in a list.
-        
-        This method will get all the already created polls and
-        will return them, if the user has no polls the system will
-        return a None.
-        
-        Variables:
-            \-
-        """
-        Polls = self.SqlObject.SelectEntry(
-            self.SqlCursor,
-            FromTable="Poll_Table",
-            Columns=("Poll_Name",),
-            Where=[["Master_User_Id", "=", "%s"]],
-            Data=(self.InternalUserId),
-        )
-        temp = []
-        for Index in Polls:
-            for Key in Index.keys():
-                temp.append(Index[Key])
-        Polls = sorted(temp)
-
-        if len(Polls) > 0:
-            return Polls
-        else:
-            return None
-
+class MessageProcessor(MessagePreProcessor):
+    """
+    This class is used as the user message analyser. 
+    It extends the MessagePreProcessor class with the needed
+    methodes for analysing the message object.
+    
+    The MessageObject will only contains a single message object, 
+    so that this class will be thread save and so that we can run
+    multiple instances per unit.    
+    
+    The message object will contain all the following parts.\n
+    .. code-block:: python\n
+        {
+                       'message': {
+                                   'date': 1439471738, 
+                                   'text': '/newpoll',
+                                   'from': {
+                                            'id': 3xxxxxx6,
+                                            'last_name': 'Sample',
+                                            'first_name': 'Max',
+                                            'username': 'TheUserName'
+                                            }, 
+                                   'message_id': 111, 
+                                   'chat': {
+                                            'id': -xxxxxxx,
+                                            'title': 'Drive'
+                                            }
+                                   },
+                        'update_id': 469262057
+                        }
+        }
+    
+    """
     def InterpretMessage(self):
         """
         This method interprets the user text.
@@ -706,14 +679,12 @@ class MessageProcessor(object):
         # check if message is a command
 
         if self.Text is not None:
-            # delete the annoying bot command from the text to analyse
-            BotName = "@{BotName}".format(BotName=self.BotName)
             # Analyse the text and do your stuff.
-
+            
+            # delete the annoying bot command from the text to analyse
             # If the name of the bot is used in the
             # command delete the @NameOfBot
-            if BotName in self.Text:
-                self.Text = self.Text.replace(BotName, "")
+            self.Text = re.sub(r"^(@\w+[bB]ot\s+)?", "", self.Text)
 
             if self.InGroup is False:
                 if self.Text.startswith("/"):
@@ -729,7 +700,19 @@ class MessageProcessor(object):
                     )
         else:
             MessageObject = None
-
+            
+        # checking that the leght of the message never will be longer then 
+        # 4096 characters long
+                
+        MessageObjectList = []
+        
+        if len(MessageObject.Text) > 4095 and MessageObject is not None:
+            TemporaryObjectHolder = MessageObject
+            for TextPart in self.Chunker(MessageObject.Text, 4095):
+                TemporaryObjectHolder.Text = TextPart
+                MessageObjectList.append(TemporaryObjectHolder)
+        else:
+            MessageObjectList.append(MessageObject)
         return MessageObject
 
     def InterpretUserCommand(self, MessageObject):
@@ -1236,16 +1219,15 @@ class MessageProcessor(object):
             pass
         elif self.Text == "/endpoll":
             pass
-
+        
         return MessageObject
 
-    def InterpretGroupNonCommand(self, MessageObject):
-        """
-        This command will interpret all the group send non commands.
+    def InterpretAdminCommands(self, MessageObject):
+                """
+        This command will interpret all the admin send commands.
 
         Variables:
             MessageObject                 ``object``
                 is the message object that has to be modified
         """
         raise NotImplementedError
-        # return MessageObject

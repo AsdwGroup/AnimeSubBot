@@ -197,7 +197,7 @@ class TelegramApi(object):
             "Accept-Encoding": "gzip"
         }
 
-        # Test if the content can be compressed or nor
+        # Test if the content can be compressed or not
         self.Compressed = True
         if self.IsTest is True:
             self.LoggingObject.info(self._("Starting self check"))
@@ -328,8 +328,8 @@ class TelegramApi(object):
            \ -
         """
         request = urllib.request.Request(
-            self.BotApiUrl + "/getMe",
-            headers=self.Headers
+            "{}/getMe".format(self.BotApiUrl),
+            headers = self.Headers
         )
 
         return self.SendRequest(request)
@@ -441,7 +441,9 @@ class TelegramApiServer(multiprocessing.Process):
         
     def run(self):
         raise NotImplementedError
-        
+    
+
+    
 class InputTelegramApiServer(TelegramApiServer):
     
     def __init__(self,
@@ -499,6 +501,7 @@ class TelegramApiServerComunicator(object):
         return self.TelegramApiServer
     
     def _SendToServer_(self, Command, ):
+        raise NotImplementedError
         self.InputQueue.put()
         
 class OutputToTelegram(TelegramApiServerComunicator):

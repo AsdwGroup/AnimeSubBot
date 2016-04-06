@@ -23,45 +23,7 @@ class Api(object):
     
     It is a interface between the mysql connector that talks with 
     the database and the python code. As well dynamically creates
-    the queries that have to be executed.
-    
-    DATABASE STRUCTURE:
-        
-        +------------------------------------------------------------+
-        |Options_Table                                               | 
-        +==================+===================+=====================+
-        |Id_Option         |contains the id of |Integer              |
-        |                  |the question       |(auto_increment)     |    
-        +------------------+-------------------+---------------------+        
-        |Id-PollTable      |contains the id of |Integer              |
-        |                  |the question       |                     |
-        |                  |(from the          |                     |
-        |                  |poll table)        |                     |
-        +------------------+-------------------+---------------------+       
-        |Option_Name       |contains the option|Varchar(128)         |                          
-        |                  |to be displayed    |                     |
-        +------------------+-------------------+---------------------+    
-        |    PRIMARY KEY (Id_Option)                                 |
-        +------------------------------------------------------------+
-            
-        +------------------------------------------------------------+    
-        |User_Table                                                  |
-        +==================+===================+=====================+  
-        |Internal_User_ID  |contains the       |Integer              |  
-        |                  |internal user id   |(auto_increment)     |                  
-        +------------------+-------------------+---------------------+        
-        |User_Name         |contains the user  |TEXT                 |          
-        |                  |name if it exists  |                     |
-        +------------------+-------------------+---------------------+      
-        |First_Name        |contains the first |TEXT                 |         
-        |                  |name if it exists  |                     |
-        +------------------+-------------------+---------------------+
-        |Last_Name         |contains the last  |TEXT                 |                       
-        |                  |name id exists     |                     |
-        +------------------+-------------------+---------------------+
-        |PRIMARY KEY (Internal_User_ID)                              |
-        +------------------------------------------------------------+
-       
+    the queries that have to be executed.       
     """
 
     def __init__(self,
@@ -107,7 +69,10 @@ class Api(object):
         # Predefining some attributes so that they later can be used for evil.
         self.LanguageObject = None
         self.LoggingObject = None
-
+        
+        if "OptionalObjects" in OptionalObjects:
+            OptionalObjects = OptionalObjects["OptionalObjects"]
+        
         if "LanguageObject" in OptionalObjects:
             self.LanguageObject = OptionalObjects["LanguageObject"]
         else:
@@ -420,7 +385,7 @@ class Api(object):
                     Data=Data)
             )
 
-    def CreateDatabase(self, Cursor, DatabaseName):
+    def _CreateDatabase_(self, Cursor, DatabaseName):
         """
         This method will create a database. Use with caution!
         
@@ -438,7 +403,7 @@ class Api(object):
             Query
         )
 
-    def DeleteDatabase(self, Cursor, DatabaseName):
+    def _DeleteDatabase_(self, Cursor, DatabaseName):
         """
         This method will drop a database. Use with caution!
         
@@ -570,97 +535,6 @@ class Api(object):
             )
             self.DatabaseConnection.rollback()
             return False
-
-    def CreateMainDatabase(self,
-                           Cursor):
-        """
-        This method will create all the default tables and data.
-        
-        Variables:
-            Cursor                ``object``
-                contains the cursor object        
-        """
-
-        # First all the tables
-        # UserTable
-        TableData = (
-            ("Internal_User_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("User_Name", "TEXT DEFAULT NULL"),
-            ("First_Name", "TEXT DEFAULT NULL"),
-            ("Last_Name", "TEXT DEFAULT NULL"),
-            ("PRIMARY KEY", "Internal_User_ID")
-        )
-
-        self.CreateTable(Cursor, "User_Table", TableData, )
-
-        # SessionHandling - saves the last send command
-        TableData = (
-            ("Session_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Command_By_User", "Integer"),  # is the internal id of the user
-            ("Command", "Varchar(256)"),
-            ("Last_Used_Id", "Integer DEFAULT NULL"),
-            ("PRIMARY KEY", "Session_Id"),
-            ("UNIQUE", "Command_By_User"),
-        )
-
-        self.CreateTable(Cursor, "Session_Table", TableData, )
-
-        # Settings
-        TableData = (
-            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Setting_Name", "Varchar(128)"),
-            ("Default_String", "Varchar(256)"),
-            ("Default_Integer", "Integer"),
-            ("Default_Boolean", "Boolean"),
-            ("PRIMARY KEY", "Setting_Id")
-        )
-
-        self.CreateTable(Cursor, "Setting_Table", TableData, )
-
-        # UserSetSetting
-        TableData = (
-            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Master_Setting_Id", "Integer"),  # This settings master entry in
-            ("Master_User_Id", "Integer"),  # This setting has been set by
-            ("User_Integer", "Integer"),
-            ("User_String", "Varchar(256)"),
-            ("User_Boolean", "Boolean"),
-            ("PRIMARY KEY", "Setting_Id"),
-            ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Setting_Id)"),
-            ("FOREIGN KEY", "Master_User_Id", "User_Table(Internal_User_Id)"),
-        )
-
-        self.CreateTable(Cursor, "User_Setting_Table", TableData, )
-        
-        # ListOfAnime - Masterlist
-        TableData = (
-            ("Id_Anime", "Integer NOT NULL AUTO_INCREMENT"),            
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Anime_Name", "Varchar(256)"),
-            ("Main_Url", "Varchar(2,083)"),
-            ("Internal_Channel_Url", "Varchar(2,083)"),
-            ("Date_of_Air", "Varchar(256)"),
-            ("PRIMARY KEY", "Id_Anime"),
-        )
-
-        self.CreateTable(Cursor, "User_Setting_Table", TableData, )
-        
-        # Second all the inserts
-        
-        # the inserts for the settings 
-        Columns = {
-            "Setting_Name": "Language",
-            "Default_String": "en_US"
-        }
-        self.InsertEntry(Cursor, "Setting_Table", Columns)
-
-        # commit all the changes
-        self.Commit()
-
-        return True
 
     def SelectEntry(self,
                     Cursor,
@@ -1087,3 +961,348 @@ class Api(object):
         """
 
         self.DatabaseConnection.rollback()
+        
+        
+class SqlDatabaseInstaller(object):
+    """
+    This class is soley here for the installation of the database 
+    structure.
+    
+    DATABASE STRUCTURE:
+            
+        +------------------------------------------------------------+    
+        |User_Table                                                  |
+        +==================+===================+=====================+  
+        |Internal_Id       |contains the       |Integer              |  
+        |                  |internal user id   |(auto increment)     |                  
+        +------------------+-------------------+---------------------+ 
+        |External_Id        |contains the      |Integer              |    
+        |                  |external user id   |(Null)               |
+        |                  |used by telegram   |                     | 
+        +------------------+-------------------+---------------------+ 
+        |Creation_Date     |contains the       |Timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the user entry  |                     |
+        +------------------+-------------------+---------------------+        
+        |User_Name         |contains the user  |Text                 |          
+        |                  |name if it exists  |(Null)               |
+        +------------------+-------------------+---------------------+      
+        |First_Name        |contains the first |Text                 |         
+        |                  |name if it exists  |(Null)               |
+        +------------------+-------------------+---------------------+
+        |Last_Name         |contains the last  |Text                 |                       
+        |                  |name id exists     |(Null)               |
+        +------------------+-------------------+---------------------+
+        |Is_Admin          |if the user is a   |Boolean              |    
+        |                  |bot admin          |(False)              |
+        +------------------+-------------------+---------------------+
+        |    UNIQUE (External_User_ID)                               |     
+        +------------------------------------------------------------+   
+        |    PRIMARY KEY (Internal_User_ID)                          |
+        +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+
+        |Session_Table                                               |
+        +==================+===================+=====================+ 
+        |Id                |contains the Id    |Integer              | 
+        |                  |of the session     |(auto increment)     |
+        +------------------+-------------------+---------------------+ 
+        |Command_By_User   |contains the       |Integer              |
+        |                  |internal user id   |(Null)               |
+        +------------------+-------------------+---------------------+ 
+        |Command           |contains the last  |Varchar(256)         |
+        |                  |send command       |(Null)               |
+        +------------------+-------------------+---------------------+ 
+        |Last_Used_Id      |contains the last  |Integer              | 
+        |                  |used id of         |(Null)               |
+        |                  |whatever was used  |                     |
+        +------------------+-------------------+---------------------+ 
+        |    UNIQUE (Command_By_User)                                |     
+        +------------------------------------------------------------+   
+        |    PRIMARY KEY (Session_Id)                                |
+        +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+ 
+        |Setting_Table                                               |
+        +==================+===================+=====================+ 
+        |Setting_Id        |contains the Id    |Integer              | 
+        |                  |of the setting     |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the settings    |                     |     
+        |                  |entry              |                     |
+        +------------------+-------------------+---------------------+     
+        |Settings_Name     |contains the name  |Varchar(128)         |
+        |                  |of the setting     |(Null)               |    
+        +------------------+-------------------+---------------------+ 
+        |Default_String    |contains the       |Varchar(256)         |   
+        |                  |default string     |(Null)               |  
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+ 
+        |Default_Integer   |contains the       |Integer              |        
+        |                  |default integer    |(Null)               |   
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+ 
+        |Default_Boolean   |contains the       |Boolean              |
+        |                  |default bloolean   |(Null)               |
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+ 
+        |    PRIMARY KEY (Setting_Id)                                |
+        +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+
+        |User_Setting_Table                                          |
+        +==================+===================+=====================+ 
+        |Id                |contains the Id    |Integer              | 
+        |                  |of the setting     |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the settings    |                     |     
+        |                  |entry              |                     |
+        +------------------+-------------------+---------------------+  
+        |Master_Setting_Id |contains the Id    |Integer              | 
+        |                  |of the setting     |(Null)               |
+        |                  |from the           |                     |
+        |                  |Sessions_Table     |                     |
+        +------------------+-------------------+---------------------+  
+        |Set_By_User       |contains the Id    |Integer              | 
+        |                  |of the user that   |(Null)               |
+        |                  |has set the        |                     |
+        |                  |setting            |                     |
+        +------------------+-------------------+---------------------+  
+        |User_String       |contains the       |Varchar(256)         |   
+        |                  |default string     |(Null)               |  
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+ 
+        |User_Integer      |contains the       |Integer              |        
+        |                  |set integer        |(Null)               |   
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+ 
+        |User_Boolean      |contains the       |Boolean              |
+        |                  |set bloolean       |(Null)               |
+        |                  |value              |                     | 
+        +------------------+-------------------+---------------------+
+        |    FOREIGN KEY Master_Setting_Id/Setting_Table(Setting_Id) |     
+        +------------------------------------------------------------+ 
+        |    FOREIGN KEY Master_User_Id/User_Table(Internal_User_Id) |     
+        +------------------------------------------------------------+         
+        |    PRIMARY KEY (Setting_Id)                                |
+        +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+
+        |Channel_Table                                               |
+        +==================+===================+=====================+
+        |Internal_Id       |contains the Id    |Integer              | 
+        |                  |of the Anime       |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |External_Name     |contains the name  |Text                 |
+        |                  |of the channel     |(Null)               |
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the anime       |                     |     
+        |                  |entry              |                     |
+        +------------------+-------------------+---------------------+     
+        |True_Name         |contains the       |Varchar(128)         |
+        |                  |actuall name of the|(Null)               |
+        |                  |channel            |                     |
+        +------------------+-------------------+---------------------+
+        |Description       |contains the       |Text                 |
+        |                  |description of the |(Null)               |
+        |                  |anime (will be sent|                     | 
+        |                  |to the channel     |                     |
+        |                  |after upload       |                     |
+        +------------------+-------------------+---------------------+
+        |    UNIQUE (External_Name)                                  |     
+        +------------------------------------------------------------+ 
+        |    PRIMARY KEY (Internal_Id)                               |
+        +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+
+        |Anime_Table                                                 |
+        +==================+===================+=====================+ 
+        |Id                |contains the Id    |Integer              | 
+        |                  |of the Anime       |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the anime       |                     |     
+        |                  |entry              |                     |
+        +------------------+-------------------+---------------------+     
+        |Name              |contains the name  |Varchar(128)         |
+        |                  |of the Anime       |(Null)               |    
+        +------------------+-------------------+---------------------+
+        |Airing_Year       |contains the year  |YEAR(4)              |
+        |                  |of the first airing|(Null)               |
+        +------------------+-------------------+---------------------+
+        |MyAnimeList_Url   |contains the url   |Varchar(2083)        |
+        |                  |to the anime on    |(Null)               |
+        |                  |MyAnimeList.net    |                     |
+        +------------------------------------------------------------+
+        |Telegram_Url      |contains the url   |Varchar(2083)        |
+        |                  |to the anime on    |(Null)               |
+        |                  |our channel        |                     |
+        +------------------------------------------------------------+
+        |Channel_Id        |contains the       |Integer              | 
+        |                  |internal Id of the |(auto increment)     |
+        |                  |channel            |                     |
+        +------------------+-------------------+---------------------+
+        |Image_Name        |contains the MD5   |Binary(16)           |
+        |                  |for directory      |(Null)               |
+        |                  |where the image is |                     | 
+        |                  |stored on the      |                     | 
+        |                  |filesystem         |                     | 
+        +------------------------------------------------------------+
+        |    FOREIGN KEY Channel_Id/Channel_Table(Internal_Id)       | 
+        +------------------------------------------------------------+
+        |    PRIMARY KEY (Id)                                        |
+        +------------------------------------------------------------+
+
+    """
+    
+    def __init__(self,
+                 User,
+                 Password,
+                 DatabaseName=None,
+                 Host="127.0.0.1",
+                 Port="3306",
+                 ReconnectTimer = 3000,
+                 **OptionalObjects):
+                 
+    """
+        This API enables an easy DatabaseConnection to the mysql driver 
+        and to the server with the database .
+    
+        VARIABLES:
+            User                     ``string``                             
+                contains the database user
+            Password                 ``string``                               
+                contains the database user password
+            DatabaseName             ``string``                             
+                contains the database name
+            Host                     ``string``
+                contains the database host ip
+            Port                     ``string``
+                contains the database port 
+            OptionalObjects          ``dictionary``
+                contains optional objects like the language object, 
+                the logging object or else
+        """             
+        self.SqlObject = Api(
+                User = User,
+                Password = Password,
+                DatabaseName = DatabaseName,
+                Host = Host,
+                Port = Port,
+                ReconnectTimer = ReconnectTimer,
+                OptionalObjects = OptionalObjects
+            )
+            
+        self.Cursor = self.SqlObject.CreateCursor()
+        
+        try:
+            self._CreateMainDatabase_()
+        except:
+            self.SqlObject.Rollback()
+            raise
+    
+    def _CreateMainDatabase_(self):
+        """
+        This method will create all the default tables and data.
+        
+        Variables:
+            Cursor                ``object``
+                contains the cursor object        
+        """
+
+        # First all the tables
+        # UserTable
+        TableName = "User_Table"
+        TableData = (
+            ("Internal_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("External_Id", "Integer DEFAULT NULL"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("User_Name", "TEXT DEFAULT NULL"),
+            ("First_Name", "TEXT DEFAULT NULL"),
+            ("Last_Name", "TEXT DEFAULT NULL"),
+            ("Is_Admin", "Boolean DEFAULT FALSE"),
+            ("UNIQUE", "External_Id"),  
+            ("PRIMARY KEY", "Internal_Id")
+        )
+
+        self.CreateTable(self.Cursor, TableName, TableData, )
+             
+        # SessionHandling - saves the last send command
+        TableName = "Session_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("Command_By_User", "Integer DEFAULT NULL"),  # is the internal id of the user
+            ("Command", "Varchar(256) DEFAULT NULL"),
+            ("Last_Used_Id", "Integer DEFAULT NULL"),
+            ("UNIQUE", "Command_By_User"),
+            ("PRIMARY KEY", "Session_Id"),
+        )
+        
+        self.CreateTable(self.Cursor, TableName, TableData, )
+
+        # Settings
+        TableName = "Setting_Table"
+        TableData = (
+            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Setting_Name", "Varchar(128) DEFAULT NULL"),
+            ("Default_String", "Varchar(256) DEFAULT NULL"),
+            ("Default_Integer", "Integer DEFAULT NULL"),
+            ("Default_Boolean", "Boolean DEFAULT NULL"),
+            ("PRIMARY KEY", "Setting_Id")
+        )
+
+        self.CreateTable(self.Cursor, TableName, TableData, )
+
+        # UserSetSetting
+        TableName = "User_Setting_Table"
+        TableData = (
+            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Master_Setting_Id", "Integer"),  # This settings master entry in
+            ("Master_User_Id", "Integer"),  # This setting has been set by
+            ("User_Integer", "Integer"),
+            ("User_String", "Varchar(256)"),
+            ("User_Boolean", "Boolean"),
+            ("PRIMARY KEY", "Setting_Id"),
+            ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Setting_Id)"),
+            ("FOREIGN KEY", "Master_User_Id", "User_Table(Internal_User_Id)"),
+        )
+
+        self.CreateTable(self.Cursor, TableName, TableData, )
+        
+        # ListOfAnime - Masterlist
+        TableData = (
+            ("Id_Anime", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Anime_Name", "Varchar(256)"),
+            ("Main_Url", "Varchar(2,083)"),
+            ("Internal_Channel_Url", "Varchar(2,083)"),
+            ("Date_of_Air", "Varchar(256)"),
+            ("PRIMARY KEY", "Id_Anime"),
+        )
+
+        self.CreateTable(self.Cursor, "User_Setting_Table", TableData, )
+        
+        # Second all the inserts
+        
+        # the inserts for the settings 
+        Columns = {
+            "Setting_Name": "Language",
+            "Default_String": "en_US"
+        }
+        self.InsertEntry(self.Cursor, "Setting_Table", Columns)
+
+        # commit all the changes
+        self.SqlObject()
+       
+
+if __name__ == '__main__':
+    raise NotImplementedError
