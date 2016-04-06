@@ -976,7 +976,7 @@ class SqlDatabaseInstaller(object):
         |Internal_Id       |contains the       |Integer              |  
         |                  |internal user id   |(auto increment)     |                  
         +------------------+-------------------+---------------------+ 
-        |External_Id        |contains the      |Integer              |    
+        |External_Id       |contains the       |Integer              |    
         |                  |external user id   |(Null)               |
         |                  |used by telegram   |                     | 
         +------------------+-------------------+---------------------+ 
@@ -1002,9 +1002,32 @@ class SqlDatabaseInstaller(object):
         +------------------------------------------------------------+
         
         +------------------------------------------------------------+
+        |Group_Table                                                 |
+        +==================+===================+=====================+
+        |Internal_Id       |contains the Id    |Integer              | 
+        |                  |of the Group       |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |External_Id       |contains the       |Integer              |    
+        |                  |external user id   |(Null)               |
+        |                  |used by telegram   |                     | 
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |Timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the user entry  |                     |
+        +------------------+-------------------+---------------------+
+        |User_Name         |contains the user  |Text                 |          
+        |                  |name if it exists  |(Null)               |
+        +------------------+-------------------+---------------------+ 
+        |    UNIQUE (External_User_ID)                               |     
+        +------------------------------------------------------------+   
+        |    PRIMARY KEY (Internal_User_ID)                          |
+        +------------------------------------------------------------+
+        
+        
+        +------------------------------------------------------------+
         |Session_Table                                               |
         +==================+===================+=====================+ 
-        |Id                |contains the Id    |Integer              | 
+        |Session_Id        |contains the Id    |Integer              | 
         |                  |of the session     |(auto increment)     |
         +------------------+-------------------+---------------------+ 
         |Command_By_User   |contains the       |Integer              |
@@ -1021,6 +1044,29 @@ class SqlDatabaseInstaller(object):
         +------------------------------------------------------------+   
         |    PRIMARY KEY (Session_Id)                                |
         +------------------------------------------------------------+
+        
+        +------------------------------------------------------------+
+        |Messages_Table                                              |
+        +==================+===================+=====================+ 
+        |Messages_Id       |contains the Id    |Integer              | 
+        |                  |of the message     |(auto increment)     |
+        +------------------+-------------------+---------------------+
+        |Creation_Date     |contains the       |Timestamp            |
+        |                  |creation date of   |(current timestamp)  |
+        |                  |of the user entry  |                     |
+        +------------------+-------------------+---------------------+
+        |JSON              |contains the json  |TEXT                 |
+        |                  |sting that was send|(Null)               |
+        +------------------+-------------------+---------------------+
+        |Set_By_User       |contains the Id    |Integer              | 
+        |                  |of the user that   |(Null)               |
+        |                  |has set the        |                     |
+        |                  |setting            |                     |
+        +------------------+-------------------+---------------------+ 
+        |    FOREIGN KEY Set_By_User/User_Table(Internal_User_Id)    |     
+        +------------------------------------------------------------+ 
+        |    PRIMARY KEY (Messages_Id)                                |
+        +------------------------------------------------------------+        
         
         +------------------------------------------------------------+ 
         |Setting_Table                                               |
@@ -1054,7 +1100,7 @@ class SqlDatabaseInstaller(object):
         +------------------------------------------------------------+
         |User_Setting_Table                                          |
         +==================+===================+=====================+ 
-        |Id                |contains the Id    |Integer              | 
+        |User_Setting_Id   |contains the Id    |Integer              | 
         |                  |of the setting     |(auto increment)     |
         +------------------+-------------------+---------------------+
         |Creation_Date     |contains the       |timestamp            |
@@ -1086,9 +1132,9 @@ class SqlDatabaseInstaller(object):
         +------------------+-------------------+---------------------+
         |    FOREIGN KEY Master_Setting_Id/Setting_Table(Setting_Id) |     
         +------------------------------------------------------------+ 
-        |    FOREIGN KEY Master_User_Id/User_Table(Internal_User_Id) |     
+        |    FOREIGN KEY Set_By_User/User_Table(Internal_User_Id)    |     
         +------------------------------------------------------------+         
-        |    PRIMARY KEY (Setting_Id)                                |
+        |    PRIMARY KEY (User_Setting_Id)                           |
         +------------------------------------------------------------+
         
         +------------------------------------------------------------+
@@ -1123,7 +1169,7 @@ class SqlDatabaseInstaller(object):
         +------------------------------------------------------------+
         |Anime_Table                                                 |
         +==================+===================+=====================+ 
-        |Id                |contains the Id    |Integer              | 
+        |Anime_Id          |contains the Id    |Integer              | 
         |                  |of the Anime       |(auto increment)     |
         +------------------+-------------------+---------------------+
         |Creation_Date     |contains the       |timestamp            |
@@ -1131,7 +1177,7 @@ class SqlDatabaseInstaller(object):
         |                  |of the anime       |                     |     
         |                  |entry              |                     |
         +------------------+-------------------+---------------------+     
-        |Name              |contains the name  |Varchar(128)         |
+        |Anime_Name        |contains the name  |Varchar(128)         |
         |                  |of the Anime       |(Null)               |    
         +------------------+-------------------+---------------------+
         |Airing_Year       |contains the year  |YEAR(4)              |
@@ -1264,21 +1310,22 @@ class SqlDatabaseInstaller(object):
         # UserSetSetting
         TableName = "User_Setting_Table"
         TableData = (
-            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("User_Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Master_Setting_Id", "Integer"),  # This settings master entry in
-            ("Master_User_Id", "Integer"),  # This setting has been set by
-            ("User_Integer", "Integer"),
-            ("User_String", "Varchar(256)"),
-            ("User_Boolean", "Boolean"),
-            ("PRIMARY KEY", "Setting_Id"),
+            ("Set_By_User", "Integer DEFAULT NULL"),  # This settings master entry in
+            ("Master_Setting_Id", "Integer DEFAULT NULL"),  # This setting has been set by
+            ("User_String", "Varchar(256) DEFAULT NULL"),
+            ("User_Integer", "Integer DEFAULT NULL"),
+            ("User_Boolean", "Boolean DEFAULT NULL"),
             ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Setting_Id)"),
-            ("FOREIGN KEY", "Master_User_Id", "User_Table(Internal_User_Id)"),
-        )
-
+            ("FOREIGN KEY", "Set_By_User", "User_Table(Internal_User_Id)"),
+            ("PRIMARY KEY", "User_Setting_Id"),
+        ) 
+        
         self.CreateTable(self.Cursor, TableName, TableData, )
         
         # ListOfAnime - Masterlist
+        TableName = "Aime_Table"
         TableData = (
             ("Id_Anime", "Integer NOT NULL AUTO_INCREMENT"),            
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
@@ -1289,7 +1336,7 @@ class SqlDatabaseInstaller(object):
             ("PRIMARY KEY", "Id_Anime"),
         )
 
-        self.CreateTable(self.Cursor, "User_Setting_Table", TableData, )
+        self.CreateTable(self.Cursor, TableName, TableData, )
         
         # Second all the inserts
         

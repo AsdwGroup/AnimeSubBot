@@ -127,25 +127,3 @@ class Server(multiprocessing.Process):
                         # so that the incoming list is always actual.
                         # This number has to be 1 bigger than the oldest unit
                         self.MasterQueue.put(MessageProcessor.UpdateId + 1)
-
-
-class TelegramConnection(multiprocessing.Process):
-    """
-    This class is the connection process to the telegram api.
-
-    This class will receive all the important function results and return them
-    into the correct queue, so that the original code can be self consistent.
-    """
-
-    def __init__(self):
-        super().__init__()
-
-    def run(self):
-        """
-        This method will override the parents run method.
-
-        Variables:
-            \-
-        """
-
-        raise NotImplementedError

@@ -6,6 +6,7 @@
     event logging system for applications and libraries.
 '''
 import os
+import time
 import queue
 import logging
 import platform
@@ -18,7 +19,6 @@ try:
     _unicode = True
 except NameError:
     _unicode = False
-
 
 class CursesHandler(logging.Handler):
     """
@@ -227,7 +227,7 @@ class Logger(logging.Logger):
         
         self.addHandler(FileHandler)
         
-        self.MLock = multiprocessing.Lock()
+        self.MLock = multiprocessing.RLock()
 
         if LogToConsole is True:
             if platform.system() == "Windows":
@@ -397,8 +397,7 @@ class Logger(logging.Logger):
         
         with self.MLock:
             super().log(level, msg, *args, **kwargs)
-            
-        
+                    
 class LoggingProcessServer(multiprocessing.Process):
     """
     This class is a child class of the multiprocessing.Process.   
@@ -493,7 +492,10 @@ class LoggingProcessServer(multiprocessing.Process):
         """
         
         super().__init__(None, name = "LoggingServer",)
-
+        
+        # This reduces the time between the calls to the queue
+        self.TimeToSleep = 0.1
+        
         # This variable holds the logging queue, in here will all 
         # the request arrive to be processed by the logger.
         self.LoggingQueue = LoggingQueue
@@ -561,7 +563,7 @@ class LoggingProcessServer(multiprocessing.Process):
                         raise TypeError
                 else:
                     raise TypeError
-
+            time.sleep(self.TimeToSleep) # giving the system some sleep
                     
 class LoggingProcessSender(object):
     """
