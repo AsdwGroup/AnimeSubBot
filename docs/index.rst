@@ -16,7 +16,6 @@ Top level files:
    Files/gobjects.rst
    Files/custom_logging.rst
    Files/telegram.rst
-   Files/mp_background.rst
 
 Sub modules:
    
