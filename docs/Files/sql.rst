@@ -3,8 +3,9 @@ sql package
 
 This package contains all the needed sql files.
 
-.. automodule:: sql
-   :members:
-   :undoc-members:
-   :show-inheritance:
-  
+.. toctree::
+   :maxdepth: 2
+   :glob:
+   
+   sql.sql_api.rst
+   
