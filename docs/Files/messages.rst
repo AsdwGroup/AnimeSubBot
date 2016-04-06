@@ -9,5 +9,4 @@ This package contains all the message processing modules.
    
    messages.msg_processor.rst
    messages.message.rst
-   messages.polling.rst
    messages.emojis.rst

@@ -1,7 +1,2 @@
-@echo off
-cd src
 
-py -3.4 setup.py py2exe
-
-cd ../
-pause
+start powershell -NoExit -Command "& 'env\Scripts\activate.ps1'; cd ./src; python ./setup.py py2exe"

@@ -23,7 +23,7 @@ __license__ = ("License GNU General Public License "
 #: 
 __version__ = 0.01
 #: 
-__release__ = 20151009204747
+__release__ = 20160406191010
 #: 
 __maintainer__ = "Adrian Hornung"
 #: 

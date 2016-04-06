@@ -10,8 +10,8 @@ import custom_logging
 import language  # imports the _() function! the translation feature).
 import parsers.configuration
 import telegram
-from . import polling  # imports in the same folder (module)
-from . import message
+
+from . import message # imports in the same folder (module)
 from . import emojis
 
 
@@ -1223,7 +1223,7 @@ class MessageProcessor(MessagePreProcessor):
         return MessageObject
 
     def InterpretAdminCommands(self, MessageObject):
-                """
+        """
         This command will interpret all the admin send commands.
 
         Variables:
