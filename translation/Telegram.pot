@@ -5,7 +5,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2016-04-06 21:08+Mitteleuropäische Sommerzeit\n"
+"POT-Creation-Date: 2016-04-06 21:31+Mitteleuropäische Sommerzeit\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -414,40 +414,40 @@ msgstr ""
 msgid "The where clause is not available"
 msgstr ""
 
-#: telegram.py:203
+#: telegram.py:202
 msgid "Starting self check"
 msgstr ""
 
-#: telegram.py:255 telegram.py:268 telegram.py:277 telegram.py:285
-#: telegram.py:295 telegram.py:305
+#: telegram.py:254 telegram.py:267 telegram.py:276 telegram.py:284
+#: telegram.py:294 telegram.py:304
 msgid "The web server returned the HTTPError \"{Error}\"."
 msgstr ""
 
-#: telegram.py:259
+#: telegram.py:258
 msgid "The server cannot or will not process the request due to something that is perceived to be a client error (e.g., malformed request syntax, invalid request message framing, or deceptive request routing)."
 msgstr ""
 
-#: telegram.py:271
+#: telegram.py:270
 msgid "The ApiToken you are using has not been found in the system. Try later or check the ApiToken for spelling errors."
 msgstr ""
 
-#: telegram.py:280
+#: telegram.py:279
 msgid "The address is forbidden to access, please try later."
 msgstr ""
 
-#: telegram.py:288
+#: telegram.py:287
 msgid "The requested resource was not found. This status code can also be used to reject a request without closer reason. Links, which refer to those error pages, also referred to as dead links."
 msgstr ""
 
-#: telegram.py:298
+#: telegram.py:297
 msgid "The server could not fulfill its function as a gateway or proxy, because it has itself obtained an invalid response. Please try later."
 msgstr ""
 
-#: telegram.py:308
+#: telegram.py:307
 msgid "The server could not fulfill its function as a gateway or proxy, because it has not received a reply from it's servers or services within a specified period of time."
 msgstr ""
 
-#: telegram.py:317
+#: telegram.py:316
 msgid "Exiting the system!"
 msgstr ""
 

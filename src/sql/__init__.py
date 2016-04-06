@@ -1351,5 +1351,6 @@ class SqlDatabaseInstaller(object):
         self.SqlObject.Commit()
        
 
+       
 if __name__ == '__main__':
     raise NotImplementedError

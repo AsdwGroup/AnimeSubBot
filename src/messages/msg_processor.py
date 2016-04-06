@@ -1231,3 +1231,4 @@ class MessageProcessor(MessagePreProcessor):
                 is the message object that has to be modified
         """
         raise NotImplementedError
+        

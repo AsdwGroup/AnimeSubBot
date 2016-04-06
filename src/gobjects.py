@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-
 ''' 
     This File will hold the global object called ObjectHolder in this 
     object all the global interesting variables will be stored.

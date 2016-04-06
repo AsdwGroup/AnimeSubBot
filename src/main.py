@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-
 """
 The main.py this file is the entry to the programs execution.
 
