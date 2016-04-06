@@ -27,13 +27,13 @@ except ImportError:
 
 
 # personal imports
+import sql
 import gobjects
-import parsers.commandline
-import parsers.configuration
-import custom_logging
 import language
 import telegram
-import sql.sql_api
+import custom_logging   
+import parsers.commandline
+import parsers.configuration
 import messages.msg_processor
 # import mp_background
 
