@@ -37,7 +37,7 @@ class Language(object):
             Localedir            string
                 contains the Language location
         """
-        if type(Languages) == type('str'):
+        if isinstance(Languages, str):
             Languages = [Languages]
         
         with self.RLock:
