@@ -13,7 +13,7 @@ import time
 import mysql.connector
 # The custom modules
 import gobjects
-import custom_logging
+import clogging
 import language  # import the _() function!
 
 
@@ -87,7 +87,7 @@ class Api(object):
         if "LoggingObject" in OptionalObjects:
             self.LoggingObject = OptionalObjects["LoggingObject"]
         else:
-            self.LoggingObject = custom_logging.Logger()
+            self.LoggingObject = clogging.Logger()
 
         # Create the connection to the database.
         self.DatabaseConnection = None

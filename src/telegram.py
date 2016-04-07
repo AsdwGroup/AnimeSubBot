@@ -6,15 +6,17 @@ import ssl
 import json
 import gzip
 import zlib
+import queue
 import platform
 import urllib.parse
 import urllib.request
 import multiprocessing
 
 import gobjects  # my own classes
-import custom_logging
-import messages.message
 import language  # imports the _() function! (the translation feature)
+import clogging
+
+
 
 class TelegramApi(object):
     """
@@ -124,7 +126,9 @@ class TelegramApi(object):
         """
         
         self.ApiToken = ApiToken
-        self.BotApiUrl = "{}{}".format(TelegramApi.BASE_URL, self.ApiToken)
+        self.BotApiUrl = "{}{}".format(TelegramApi.BASE_URL, 
+                                       self.ApiToken
+                                       )
         
         # Predefining attribute so that it later can be used for evil.
         self.LanguageObject = None
@@ -132,15 +136,18 @@ class TelegramApi(object):
         self.ExitOnError = False
         
         # This variables are in normal situations not used.
-        # They are only used when the connection to telegram is being tested (at the start of the program).
+        # They are only used when the connection to telegram is being 
+        # tested (at the start of the program).
         self.IsTest = False
         self.TestQueue = None
         self.Connection = True
-        # This timer is needed to see if there is a problem with the telegram
-        # server. If so the interval should be bigger (1 min instead given
-        # time 1 sec)
+        
+        # This timer is needed to see if there is a problem with the
+        # telegram server. If so the interval should be bigger (1 min 
+        # instead given time 1 sec)
         self.RequestTimer = RequestTimer
         self.GivenRequestTimer = RequestTimer
+        
         if "OptionalObjects" in OptionalObjects:
             OptionalObjects = OptionalObjects["OptionalObjects"]
             
@@ -148,14 +155,14 @@ class TelegramApi(object):
             self.LanguageObject = OptionalObjects["LanguageObject"]
         else:
             self.LanguageObject = (
-                language.CreateTranslationObject()
+                language.Language().CreateTranslationObject()
             )
 
             
         if "LoggingObject" in OptionalObjects:
             self.LoggingObject = OptionalObjects["LoggingObject"]
         else:
-            self.LoggingObject = custom_logging.Logger()
+            self.LoggingObject = clogging.Logger()
 
         if "ExitOnError" in OptionalObjects:
             self.ExitOnError = OptionalObjects["ExitOnError"]
@@ -166,7 +173,7 @@ class TelegramApi(object):
         # Here we are initialising the function for the translations.
         self._ = self.LanguageObject.gettext
 
-        self.SSLEncryption = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        self.SSLEncryption = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2) 
 
 #         this looks like this:
 #         {
@@ -178,28 +185,31 @@ class TelegramApi(object):
 #         }
 
         self.Headers = {
-            'User-agent': (
-                gobjects.__AppName__ + '/' +
-                str(gobjects.__version__) + ' (' +
-                '; '.join(platform.system_alias(
-                    platform.system(),
-                    platform.release(),
-                    platform.version()
-                )
-                ) +
-                ') Python-urllib/' +
-                str(platform.python_build()) +
-                ' from ' + gobjects.__hosted__
-            ),
+            'User-agent': (("{AppName}/{Version}({Platform})"
+                            "Python-urllib/{PythonBuild} from {Hosted}"
+                            ).format(
+                                AppName = gobjects.__AppName__,
+                                Version = gobjects.__version__,
+                                Platform = ('; '.join(
+                                                platform.system_alias(
+                                                    platform.system(),
+                                                    platform.release(),
+                                                    platform.version()
+                                                    )
+                                                      )
+                                            ),
+                                PythonBuild = platform.python_build(),
+                                Hosted = gobjects.__hosted__
+                                )
+                           ),
             "Content-Type":
                 "application/x-www-form-urlencoded;charset=utf-8",
-            "Accept-Encoding": "gzip"
+            "Accept-Encoding": "gzip,deflate"
         }
 
         # Test if the content can be compressed or not
         self.Compressed = True
-        if self.IsTest is True:
-            self.LoggingObject.info(self._("Starting self check"))
+
         self.BotName = self.GetMe()
 
     def GetBotName(self):
@@ -236,13 +246,19 @@ class TelegramApi(object):
                 if self.Compressed is True:
                     RequestEncoding = Request.info().get("Accept-Encoding")
                     if RequestEncoding == "gzip":
+                        
                         TheResponse = gzip.decompress(Request.read())
+                    elif RequestEncoding == "deflate":
+                        Decompress = zlib.decompressobj(
+                                                        -zlib.MAX_WBITS  # see above
+                                                        )
+                        TheResponse = Decompress.decompress(Request.read())
+                        TheResponse += Decompress.flush()
                     else:
                         # setting the compression to false
                         self.Compressed = False
                         # deleting the Accept-Encoding header since neither of the encodings where accepted
                         del self.Headers["Accept-Encoding"]
-
                         TheResponse = Request.read()
                 else:
                     TheResponse = Request.read()
@@ -402,17 +418,7 @@ class TelegramApi(object):
         This function will maybe be build in the future for now
         it's not doing anything.
         """
-        MessageData = {}
-        pass
-
-    def run(self):
-        """
-        A that should never be called
-        
-        This function will raise an error, since this class should not be called.
-        """
-        #if self.IsTest
-        
+        #MessageData = {}
         raise NotImplementedError
 
 class TelegramApiServer(multiprocessing.Process):
@@ -423,6 +429,7 @@ class TelegramApiServer(multiprocessing.Process):
                  RequestTimer,
                  InputQueue,
                  OutputQueue,
+                 ConnectionEvent,
                  ShutDownEvent,
                  **OptionalObjects):
                  
@@ -430,14 +437,42 @@ class TelegramApiServer(multiprocessing.Process):
         self.Name = Name
         self.InputQueue = InputQueue
         self.OutputQueue = OutputQueue
+        self.ConnectionEvent = ConnectionEvent
         self.ShutDownEvent = ShutDownEvent
         
-        self.TelegramApi = TelegramApi(
-                 ApiToken = ApiToken,
-                 RequestTimer = RequestTimer,   
-                 OptionalObjects = OptionalObjects
-        )
+        self.Data = {
+                     "ApiToken": ApiToken,
+                     "RequestTimer":RequestTimer,
+                     "OptionalObjects": OptionalObjects
+                     }
         
+        self.TelegramApi = None
+    
+    def _StartApi_(self):
+        """
+        This method will create the TelegeramApi object
+        """
+        self.TelegramApi = TelegramApi(
+                 ApiToken = self.Data["ApiToken"],
+                 RequestTimer = self.Data["RequestTimer"],   
+                 OptionalObjects = self.Data["OptionalObjects"]
+        )
+    
+    def AddToQueue(self, ElementToAdd):
+        """
+        This method will add an element to the worker queue
+        """
+        self.OutputQueue.put(ElementToAdd, True)
+    
+    def GetElementsFromQueue(self,):
+        ElementFromQueue = None
+        try:
+            ElementFromQueue = self.InputQueue.get_nowait()
+        except queue.Empty:
+            pass
+        
+        return ElementFromQueue
+            
     def run(self):
         raise NotImplementedError
      
@@ -449,162 +484,46 @@ class InputTelegramApiServer(TelegramApiServer):
                  RequestTimer,
                  InputQueue,
                  OutputQueue,
+                 ConnectionEvent,
                  ShutDownEvent,
                  OptionalObjects):
                  
         super().__init__(name = Name)
-        self.Name = Name
-        self.InputQueue = InputQueue
-        self.OutputQueue = OutputQueue
-        self.ShutDownEvent = ShutDownEvent
-        self.TelegramApi = TelegramApi(
-                 ApiToken = ApiToken,
-                 RequestTimer = RequestTimer,   
-                 OptionalObjects = OptionalObjects
-        )
-        
-    def run(self):
-        pass
-
-class OutputTelegramApiServer(TelegramApiServer):
-        pass
-        
-class TelegramApiServerComunicator(object):
-    def __init__(self,
-                 ApiToken,
-                 RequestTimer,
-                 ShutDownEvent,
-                 OptionalObjects
-                 ):
-                 
-        self.InputQueue = multiprocessing.Queue()
-        self.OutputQueue = multiprocessing.Queue()  
-        
-        self.TelegramApiServer = TelegramApiServer(
-            Name = "InputTelegramApiServer",
-            ApiToken = ApiToken,
-            RequestTimer = RequestTimer,
-            InputQueue = self.InputQueue,
-            OutputQueue = self.OutputQueue,
-            ShutDownEvent = ShutDownEvent,
-            OptionalObjects = OptionalObjects
-        )         
-        raise NotImplementedError
-    
-    def _GetSubProcessPid_(self):
+           
+    def GetBotName(self):
         """
-        This methode will return the subprocess object.
+        This methode gets the bot name from the Api
         """
-        return self.TelegramApiServer
+        BotName = self.TelegramApi.GetBotName()
+        return BotName
     
-    def _SendToServer_(self, Command, ):
-        raise NotImplementedError
-        self.InputQueue.put()
+    def InterpretCommand(self, Command):
+        Order, ConnectionObject = Command
+                
+        if Order == "GetBotName":
+            BotName = self.GetBotName()
+            ConnectionObject.send(BotName)
+            ConnectionObject.close()
+        else:
+            pass
        
-class OutputToTelegram(TelegramApiServerComunicator):
-
-    def __init__(self,
-                 ApiToken,
-                 RequestTimer,
-                 ShutDownEvent,
-                 **OptionalObjects):
-                 
-        self.InputQueue = multiprocessing.Queue()
-        self.OutputQueue = multiprocessing.Queue()    
-        self.TelegramApiServer = TelegramApiServer(
-            Name = "OutputTelegramApiServer",
-            ApiToken = ApiToken,
-            RequestTimer = RequestTimer,
-            InputQueue = self.InputQueue,
-            OutputQueue = self.OutputQueue,
-            ShutDownEvent = ShutDownEvent,
-            OptionalObjects = OptionalObjects
-        )
-        raise NotImplementedError
-
-class InputFromTelegram(TelegramApiServerComunicator):
-     
-    def __init__(self,
-                 ApiToken,
-                 RequestTimer,
-                 ShutDownEvent,
-                 **OptionalObjects
-                 ):
-        
-        super.__init__(
-            Name = "InputTelegramApiServer",
-            ApiToken = ApiToken,
-            RequestTimer = RequestTimer,
-            ShutDownEvent = ShutDownEvent,
-            OptionalObjects = OptionalObjects
-        )             
-"""
-class Server(multiprocessing.Process):
-    ""
-    This class will let the bot server run on a different process than the
-    console interface.
-    ""
-
-    def __init__(self,
-                 TelegramObject,
-                 SqlObject,
-                 MasterQueue,
-                 **OptionalObjects):
-        ""
-
-        Variables:
-            TelegramObject                ``object``
-                This holds the telegram object needed
-            SqlObject                     ``object``
-                This holds the sql connector object
-            MasterQueue                   ``object``
-                  This holds the queue used to get the termination command.
-                  (True or False)
-            OptionalObjects               ``directory``
-                In here are all the normally not really needed variables stored
-                like the logging object or else
-                Possible objects are:
-                    - LoggingObject
-                    - LanguageObject
-                    - BotName
-
-        ""
-
-        # init the subprocess
-        super().__init__(name="Background", )
-
-        # init the programs
-        self.TelegramObject = TelegramObject
-        self.SqlObject = SqlObject
-        self.MasterQueue = MasterQueue
-
-        if "LoggingObject" in OptionalObjects:
-            self.LoggingObject = OptionalObjects["LoggingObject"]
-        else:
-            self.LoggingObject = custom_logging.Logger()
-
-        if "LanguageObject" in OptionalObjects:
-            self.LanguageObject = OptionalObjects["LanguageObject"]
-        else:
-            self.LanguageObject = language.CreateTranslationObject()
-
-        self._ = self.LanguageObject.gettext
-
-        if "BotName" in OptionalObjects:
-            self.BotName = OptionalObjects["BotName"]
-        else:
-            self.BotName = gobjects.__AppName__
-
-
     def run(self):
-        ""
-        This method will override the parents run method.
+        """
+        The method where the action happens
+        """
+        while self.ShutDownEvent.is_set():
+            # check the input queue for orders
+            Input = None
 
-        Variables:
-            \-
-        ""
-        #raise NotImplementedError
+            try:
+                Input = self.InputQueue.get_nowait()
+            except queue.Empty:
+                pass
+            
+            if Input is not None:
 
+                       
+"""
         InternalQueue = multiprocessing.Queue()
         InternalQueue.put(None)
 
@@ -657,46 +576,156 @@ class Server(multiprocessing.Process):
                         # This number has to be 1 bigger than the oldest unit
                         self.MasterQueue.put(MessageProcessor.UpdateId + 1)
                         
-                        """
-    
-    
-if __name__ == "__main__":
-    print('online')
-    import pprint
+"""
 
-    OrgTok = "80578257:AAEt5tHodsbD6P3hqumKYFJAyHTGWEgcyEY"
-    FalTok = "80578257:AAEt5aH64bD6P3hqumKYFJAyHTGWEgcyEY"
-    a = TelegramApi(OrgTok,
-                    500)
-
-    Update = a.GetUpdates(469262639 + 1)
-    print(Update)
-    try:
-        print(Update["result"][len(Update["result"]) - 1]["update_id"])
-
-        MessageObject = messages.message.MessageToBeSend(
-            Update["result"][len(Update["result"]) - 1]["message"]
-            ["chat"]["id"], "1"
-        )
-        MessageObject.ReplyKeyboardMarkup(
-                                          Keybord=[["Top Left",
-                                                    "Top Right"],
-                                                   ["Bottom Left",
-                                                    "Bottom Right" ]
-                                                   ],
-                                          ResizeKeyboard=True,
-                                          OneTimeKeyboard=True,
-                                          Selective=False
-                                          )
-        # MessageObject.ForceReply()
-        MessageObject.ReplyKeyboardHide(Selective=True)
-
-        print(a.SendMessage(MessageObject))
-    except:
+class OutputTelegramApiServer(TelegramApiServer):
         pass
-#     if a:
-#         pprint.PrettyPrinter(indent=4).pprint((a.GetMe()))
-#         pprint.PrettyPrinter(indent=4).pprint((a.GetUpdates()))
-#     else:
-#         print("None")
-    print('offline')
+        
+class TelegramApiServerComunicator(object):
+    """
+    The parent object that will first initialise the workers and 
+    then be used to comunicate with the workers.
+    """
+    def __init__(self,
+                 Name,
+                 ApiToken,
+                 RequestTimer,
+                 ConnectionEvent,
+                 ShutDownEvent,
+                 OptionalObjects
+                 ):
+                
+        self.InputQueue = multiprocessing.Queue()
+        self.OutputQueue = multiprocessing.Queue()  
+        self.Name = Name
+        self._BotName = None
+        
+        self.TelegramApiServer = None
+        self.Data = {
+                     "ApiToken": ApiToken,
+                     "RequestTimer":RequestTimer,
+                     "ConnectionEvent":ConnectionEvent,
+                     "ShutDownEvent":ShutDownEvent,
+                     "OptionalObjects": OptionalObjects
+                     }    
+
+    def _InitTelegramServer_(self):
+        """
+        This method will be overwritten by the child obejcts.
+        """
+        raise NotImplementedError
+    
+    def _GetSubProcessPid_(self):
+        """
+        This methode will return the subprocess object.
+        """
+        return self.TelegramApiServer
+    
+    def _SendToServer_(self, Object, ):
+        """
+        This method will send the send the Object to the server.
+        
+        Variables
+            Object                        ``object``
+                Can be everything that is pickable
+        """
+        self.InputQueue.put(Object)
+              
+class OutputToTelegram(TelegramApiServerComunicator):
+
+    def __init__(self,
+                 ApiToken,
+                 RequestTimer,
+                 ConnectionEvent,
+                 ShutDownEvent,
+                 **OptionalObjects):
+        
+        super().__init__(
+                         Name = "OutputTelegramApiServer",
+                         ApiToken = ApiToken,
+                         RequestTimer = RequestTimer,
+                         InputQueue = self.InputQueue,
+                         OutputQueue = self.OutputQueue,
+                         ConnectionEvent = ConnectionEvent,
+                         ShutDownEvent = ShutDownEvent,
+                         OptionalObjects = OptionalObjects    
+                         )
+            
+        self._InitTelegramServer_()
+    
+    def _InitTelegramServer_(self):
+        """
+        This method is an override of the parent method.
+        
+        It simply starts the serverprocess.
+        """
+        self.TelegramApiServer = OutputTelegramApiServer(
+            Name = self.Name,
+            ApiToken = self.ApiToken,
+            RequestTimer = self.RequestTimer,
+            InputQueue = self.InputQueue,
+            OutputQueue = self.OutputQueue,
+            ConnectionEvent = self.ConnectionEvent,
+            ShutDownEvent = self.ShutDownEvent,
+            OptionalObjects = self.OptionalObjects
+        )
+    
+    def SaveWorkload(self):
+        InputPipe, OutputPipe = multiprocessing.Pipe(False)
+        self._SendToServer_(("SaveWorkload",OutputPipe,))
+        self._BotName = InputPipe.recv()
+        InputPipe.close()
+        OutputPipe.close()
+        
+    
+class InputFromTelegram(TelegramApiServerComunicator):
+     
+    def __init__(self,
+                 ApiToken,
+                 RequestTimer,
+                 ShutDownEvent,
+                 ConnectionEvent,
+                 **OptionalObjects
+                 ):
+        
+        super().__init__(
+            Name = "InputTelegramApiServer",
+            ApiToken = ApiToken,
+            RequestTimer = RequestTimer,
+            ConnectionEvent = ConnectionEvent,
+            ShutDownEvent = ShutDownEvent,
+            OptionalObjects = OptionalObjects
+        ) 
+          
+        self._InitTelegramServer_()
+        
+    def _InitTelegramServer_(self):
+        """
+        This method is an override of the parent method.
+        
+        It simply starts the serverprocess.
+        """
+        self.TelegramApiServer = InputTelegramApiServer(
+            Name = self.Name,
+            ApiToken = self.ApiToken,
+            RequestTimer = self.RequestTimer,
+            InputQueue = self.InputQueue,
+            OutputQueue = self.OutputQueue,
+            ConnectionEvent = self.ConnectionEvent,
+            ShutDownEvent = self.ShutDownEvent,
+            OptionalObjects = self.OptionalObjects
+        )  
+                             
+    def GetBotName(self):
+        """
+        This method will first get the bot name from the server process
+        and then return it.
+        """
+        if self._BotName is None:
+            InputPipe, OutputPipe = multiprocessing.Pipe(False)
+            self._SendToServer_(("GetBotName",OutputPipe,))
+            self._BotName = InputPipe.recv()
+            InputPipe.close()
+            OutputPipe.close()
+        return self._BotName
+            

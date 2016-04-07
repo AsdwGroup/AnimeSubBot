@@ -30,7 +30,7 @@ import sql
 import gobjects
 import language
 import telegram
-import custom_logging   
+import clogging
 import parsers.commandline
 import parsers.configuration
 import messages.msg_processor
@@ -121,7 +121,7 @@ def Main():
         
         
         # Initialise the rest of the objects.
-        MasterLogger = custom_logging.LoggingProcessSender(
+        MasterLogger = clogging.LoggingProcessSender(
             LogToConsole=ParserArguments.PrintToConsole,
             FileName=Configuration["Logging"]["LoggingFileName"],
             MaxLogs=Configuration["Logging"]["MaxLogs"],

@@ -6,7 +6,7 @@ import re
 
 # The custom modules
 import gobjects
-import custom_logging
+import clogging
 import language  # imports the _() function! the translation feature).
 import parsers.configuration
 import telegram
@@ -73,7 +73,7 @@ class MessagePreProcessor(object):
         if "LoggingObject" in OptionalObjects:
             self.LoggingObject = OptionalObjects["LoggingObject"]
         else:
-            self.LoggingObject = custom_logging.Logger()
+            self.LoggingObject = clogging.Logger()
 
         if "ConfigurationObject" in OptionalObjects:
             self.ConfigurationObject = OptionalObjects["ConfigurationObject"]

@@ -12,6 +12,7 @@ import logging
 import platform
 import logging.handlers
 import multiprocessing
+from builtins import True
 
 # if python 2 is used
 try:
@@ -494,7 +495,7 @@ class LoggingProcessServer(multiprocessing.Process):
         super().__init__(None, name = "LoggingServer",)
         
         # This reduces the time between the calls to the queue
-        self.TimeToSleep = 0.1
+        self.TimeToSleep = 1
         
         # This variable holds the logging queue, in here will all 
         # the request arrive to be processed by the logger.
@@ -539,11 +540,15 @@ class LoggingProcessServer(multiprocessing.Process):
             while not self.LoggingQueue.empty():
                 LoggingObject = None
                 try:
-                    LoggingObject = self.LoggingQueue.get_nowait()
+                    # waste yourtime waiting
+                    LoggingObject = self.LoggingQueue.get(block = True,
+                                                          timeout = self.TimeToSleep
+                                                          )
                 except queue.Empty:
                     pass
                 except:
                     raise
+                
                 if LoggingObject is not None:
 
                     TypeOfLog = LoggingObject["Type"].upper()
@@ -678,13 +683,13 @@ class LoggingProcessSender(object):
         """
         return self.LoggingServer
     
-    def _InsetIntoQueue_(self, type, msg):
+    def _InsetIntoQueue_(self, version, msg):
         """
         This method will send all the logging messages to the queue
         where they will arrive at the logging process.
         """
         Directory = {
-            "Type": type,
+            "Type": version,
             "Message": msg,
         }
             
@@ -739,7 +744,3 @@ class LoggingProcessSender(object):
         """
         self._InsetIntoQueue_("LOG", msg)
         
-   
-if __name__ == '__main__':
-    # for testing please use the files in the test folder
-    raise NotImplementedError
