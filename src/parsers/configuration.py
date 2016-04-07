@@ -26,6 +26,7 @@ class ConfigurationParser(configparser.RawConfigParser):
 
     def __init__(self,
                  FileName="config.ini",
+                 ConfigFileInit = True, 
                  **Configuration):
         """
         This init method extends the original one with multiple 
@@ -35,32 +36,40 @@ class ConfigurationParser(configparser.RawConfigParser):
             FileName                      ``string``
                 contains the name of the configuration file
                 
-            Configuration                 ``directory``
-                contains the option to reconfigure the default 
-                super values.
+            ConfigFileInit                ``string``
+                if the configuration file shall be created by object 
+                creation.
+                
+
         """
 
         # Custom configurable filename
-        self.FileName = FileName
+        self.FilePath= os.path.abspath("config")
+        
+        self.FileName = os.path.join(self.FilePath, FileName)
         self.ResetConfigurationFile = False
         self.Encoding = "utf-8"
-
+        self.ConfigFileInit = ConfigFileInit
         # variables needed for the configparser
         self.Default = None
         self.DictType = collections.OrderedDict
         self.AllowNoValue = False
-        self.Delimiters = ("=", ":")
-        self.CommentPrefixes = ("#", ";")
+        self.Delimiters = ("=", ":",)
+        self.CommentPrefixes = ("#", ";",)
         self.InlineCommentPrefixes = None
         self.Strict = True
         self.EmtyLineInValues = True
         self.DefaultSelection = configparser.DEFAULTSECT
         self.Interpolation = configparser.ExtendedInterpolation()
-
+        
         # the Configuration directory is to be filled with the
         # parameters of the configparser
         if 0 < len(Configuration):
             # for the own class
+            
+            if "Configuration" in Configuration:
+                Configuration = Configuration["Configuration"]
+            
             if "reset_configuration" in Configuration:
                 self.ResetConfigurationFile = (
                     Configuration["reset_configuration"]
@@ -108,17 +117,18 @@ class ConfigurationParser(configparser.RawConfigParser):
         # This commands sets the parser sensitive to upper- and lowercase.
         self.optionxform = lambda option: option
 
-        # check if configfile exists
-        if os.path.isfile(self.FileName) is not True:
-            self.WriteDefaultConfigurationFile()
+        if self.ConfigFileInit is True:
+            # check if configfile exists
+            if os.path.isfile(self.FileName) is not True:
+                self.WriteConfigurationFile()
+    
+            elif self.ResetConfigurationFile is True:
+                self.WriteConfigurationFile()
+    
+            # Read the configuration from the init
+            self.ReadConfigurationFile()
 
-        elif self.ResetConfigurationFile is True:
-            self.WriteDefaultConfigurationFile()
-
-        # Read the configuration from the init
-        self.ReadConfigurationFile()
-
-    def WriteDefaultConfigurationFile(self):
+    def WriteConfigurationFile(self):
         """
         A method to write the default configuration to the .ini file.
         
@@ -137,7 +147,6 @@ class ConfigurationParser(configparser.RawConfigParser):
             ("RequestTimer", 1000),
             ("DefaultLanguage", "en_US"),
             ("MaxWorker", 5),
-            #("ApiToken", "")
         ))
 
         self["MySQLConnectionParameter"] = collections.OrderedDict(
@@ -146,8 +155,6 @@ class ConfigurationParser(configparser.RawConfigParser):
                 ("DatabaseName", "AnimeSubBotDatabase"),
                 ("DatabaseHost", "127.0.0.1"),
                 ("DatabasePort", 3306),
-                #("DatabaseUser", ""),
-                #("DatabasePassword", "")
             )
         )
 
@@ -157,7 +164,10 @@ class ConfigurationParser(configparser.RawConfigParser):
             ("LoggingFormat", "[%(asctime)s] - [%(levelname)s] - %(message)s"),
             ("DateFormat", "%d.%m.%Y %H:%M:%S")
         ))
-
+        
+        if not os.path.isdir(self.FilePath):
+            os.mkdir(self.FilePath)
+        
         # Writes the default configuration in to the correct file
         with open(self.FileName, "w") as configfile:
             self.write(configfile)
@@ -175,23 +185,35 @@ class ConfigurationParser(configparser.RawConfigParser):
 
         self.read(self.FileName, )
 
-class SecureConfigurationParser(configparser.ConfigParser):
-    '''
-    This class is build for the "securer" configuration file.
-    '''
-
+class SecureConfigurationParser(ConfigurationParser):
+    """
+    This class is an extension of the custom ConfigurationParser
+    class it adds an AES-type encryption to the configuration for a bit 
+    more security. 
+    """
+                  
     def __init__(self, 
-                 NameOfConfigurationFile = "Conf.pcl",
-                 # this is a dummy key for testing
-                 InternalKey = r"PuN?~kDr39s+FT'*YQ}-j}~]>ke#3VmE", 
+                 InternalKey,
+                 FileName = "config.pcl",
                  **Configuration):
         """
         The __init__ method.
         
         Variables:
-            NameOfConfigurationFile       ``string``
+
+                
+            InternalKey                   ``string``
+                contains the internal password needed to en- and decrypt
+                the configuration file.
+            
+            FileName                      ``string``
                 contains the name of the configuration file
+                
+            Configuration                 ``directory``
+                contains the option to reconfigure the default 
+                super values.
         """
+
         
         # variables needed for the encryption  
         self.InternalKey = InternalKey
@@ -199,78 +221,24 @@ class SecureConfigurationParser(configparser.ConfigParser):
         SHA256Enc.update(InternalKey.encode("utf-8"))
         self.HashKey = SHA256Enc.digest()
                                     
-        self.NameOfConfigurationFile = NameOfConfigurationFile
-        self.Padding = b"|"
+        self.FileName = FileName
+        self.Padding = "|"
 
         self.Mode = Crypto.Cipher.AES.MODE_CBC
-        
-        # variables needed for the configparser
-        self.Default = None
-        self.DictType = collections.OrderedDict
-        self.AllowNoValue = False
-        self.Delimiters = ("=", ":")
-        self.CommentPrefixes = ("#", ";")
-        self.InlineCommentPrefixes = None
-        self.Strict = True
-        self.EmtyLineInValues = True
-        self.DefaultSelection = configparser.DEFAULTSECT
-        self.Interpolation = configparser.ExtendedInterpolation()
 
-        # the Configuration directory is to be filled with the
-        # parameters of the configparser
-        if 0 < len(Configuration):
-            # for the own class
-            if "reset_configuration" in Configuration:
-                self.ResetConfigurationFile = (
-                    Configuration["reset_configuration"]
-                )
-
-            # for the super class the configparser
-            if "defaults" in Configuration:
-                self.Default = Configuration["defaults"]
-            if "dict_type" in Configuration:
-                self.DictType = Configuration["dict_type"]
-            if "allow_no_value" in Configuration:
-                self.AllowNoValue = Configuration["allow_no_value"]
-            if "delimiters" in Configuration:
-                self.Delimiters = Configuration["delimiters"]
-            if "comment_prefixes" in Configuration:
-                self.CommentPrefixes = Configuration["comment_prefixes"]
-            if "inline_comment_prefixes" in Configuration:
-                self.InlineCommentPrefixes = (
-                    Configuration["inline_comment_prefixes"]
-                )
-            if "strict" in Configuration:
-                self.Strict = Configuration["strict"]
-            if "empty_lines_in_values" in Configuration:
-                self.EmtyLineInValues = Configuration["empty_lines_in_values"]
-            if "default_section" in Configuration:
-                self.DefaultSelection = Configuration["default_section"]
-            if "interpolation" in Configuration:
-                self.Interpolation = Configuration["interpolation"]
-
-        # This method initializes the superclass with all the possible
-        # parameters.
-        super().__init__(
-            defaults=self.Default,
-            dict_type=self.DictType,
-            allow_no_value=self.AllowNoValue,
-            delimiters=self.Delimiters,
-            comment_prefixes=self.CommentPrefixes,
-            inline_comment_prefixes=self.InlineCommentPrefixes,
-            strict=self.Strict,
-            empty_lines_in_values=self.EmtyLineInValues,
-            default_section=self.DefaultSelection,
-            interpolation=self.Interpolation
-        )
-
-        # This commands sets the parser sensitive to upper- and lowercase.
-        self.optionxform = lambda option: option  
+        super().__init__(FileName = FileName,
+                         ConfigFileInit = False,
+                         Configuration = Configuration
+                         )
+      
     
     def GetNewIV(self):
         """
         This method will generate a random initialization vector (IV)
         that will be used for the encryption.
+        
+        Variables:
+            \-
         """
         return Crypto.Random.get_random_bytes(16)
     
@@ -278,19 +246,41 @@ class SecureConfigurationParser(configparser.ConfigParser):
                                TelegramToken, DatabaseUser, 
                                DatabasePassword):
         """
+        This method is a override of the parent method.
         
+        It enables the writting of the encrypted configuration file.
+        
+        Variables:
+            TelegramToken                 ``string``
+                This is the TelegramToken that should be secured.
+            
+            DatabaseUser                  ``string``
+                This is the DatabaseUser that should be secured.
+                
+            DatabasePassword              ``string``
+                This is the DatabaseUser that should be secured.
         """
+        if not os.path.isdir(self.FilePath):
+            os.mkdir(self.FilePath)
+        
         Configuration = {"TelegramToken": TelegramToken,
                          "DatabaseUser": DatabaseUser,
                          "DatabasePassword": DatabasePassword
                          }
-        print(Configuration)
         Configuration = self.StringToBase64(json.dumps(Configuration))
         Components = self._Encode_(self.HashKey, Configuration)
-        self.SaveToConfigFile(Components)
+        self._SaveToConfigFile_(Components)
     
     def ReadConfigurationFile(self,):
-        Components = self.GetFromConfigFile()
+        """
+        This method is a override of the parent method.
+        
+        It enables reading the secure configuration file.
+        
+        Variables:
+            \-
+        """
+        Components = self._GetFromConfigFile_()
         Configuration = self._Decode_(self.HashKey, Components[0], Components[1])
         Text = self.Base64ToString(Configuration)
         self["Security"] = json.loads(Text)
@@ -298,6 +288,8 @@ class SecureConfigurationParser(configparser.ConfigParser):
     def StringToBase64(self, String, Encoding = "utf-8"):
         """
         Will encode a string to base64 configuration.
+        
+        
         """
         return base64.b64encode(String.encode(Encoding))
     
@@ -323,7 +315,7 @@ class SecureConfigurationParser(configparser.ConfigParser):
             
         if len(String) % 16 != 0:
             String = b"{}{}".format(String, 
-                                   (16 - (len(String) % 16)) * b"|"
+                                   (16 - (len(String) % 16)) * self.Padding.encode("utf-8")
                                    )
         IV = self.GetNewIV()
         Encryptor = Crypto.Cipher.AES.new(self.HashKey, 
@@ -339,22 +331,33 @@ class SecureConfigurationParser(configparser.ConfigParser):
             Key                           ``string``
                 a string of lenght n*16
             
-            Ciphertext                        ``string``
+            Ciphertext                    ``string``
                 a string to decode
         """
         Decryptor = Crypto.Cipher.AES.new(Key, self.Mode, IV=IV)
         Text = Decryptor.decrypt(Ciphertext)
-        Text = re.sub(r"(\|*)$","", Text.decode("utf-8")).encode("utf-8")
+        Text = re.sub(r"(\{Padding}*)$".format(Padding = self.Padding),
+                      "", Text.decode("utf-8")).encode("utf-8")
         
         return Text
         
-    def SaveToConfigFile(self, Object):
-        with open(self.NameOfConfigurationFile, "wb") as File:
+    def _SaveToConfigFile_(self, Object):
+        """
+        This method will save a pickled object to the file system.
+        
+        Variables:
+            Object                        ``object``
+                this should be a picklable object
+        """
+        with open(self.FileName, "wb") as File:
             pickle.dump(Object, File, protocol = pickle.HIGHEST_PROTOCOL)
     
-    def GetFromConfigFile(self):
-        temp = None
-        with open(self.NameOfConfigurationFile, "rb") as File:
+    def _GetFromConfigFile_(self):
+        """
+        This method will load the pickeled data from the configuration
+        file.
+        """
+        with open(self.FileName, "rb") as File:
             temp = pickle.load(File,)
             
         return temp  
@@ -364,10 +367,12 @@ if __name__ == "__main__":
     a = ConfigurationParser(reset_configuration=False)
     a.ReadConfigurationFile()
     #print(a["Telegram"]["DefaultLanguage"].split(","))
-
+    
+    
+    # this is a dummy key for testing
     a = SecureConfigurationParser(InternalKey = r"PuN?~kDr39s+FT'*YQ}-j}~]>ke#3VmE")
     a.WriteConfigurationFile(
-                             r"219513013:AAFmVgd2PG_fblbWysfGKY-ZAy70tMBhNYY",
+                             r"TelegramKey",
                              "MySql@DatabaseUser24",
                              "Em#NYcGb7+GGXSg4\'F_c:a]cw'qzZ5fQe@X9f"
                              )

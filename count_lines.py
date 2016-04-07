@@ -1,4 +1,4 @@
-# !/usr/bin/python
+﻿# !/usr/bin/python
 # -*- coding: utf-8 -*-
 
 import os
@@ -49,8 +49,8 @@ if __name__ == "__main__":
         "icons",
         "LC_MESSAGES",
         "config.ini",
-        # "setup.py"
-            ]
+         #"setup.py",
+            "Conf.pcl"]
     path_to_files = "./src"
     count = True
 
