@@ -1,4 +1,4 @@
-﻿alabaster==0.7.7
+alabaster==0.7.7
 Babel==2.2.0
 colorama==0.3.7
 docutils==0.12

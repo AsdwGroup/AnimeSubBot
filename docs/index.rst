@@ -22,7 +22,7 @@ Sub modules:
 .. toctree::
    :maxdepth: 2
    :glob:
-   
+   Files/SecureConfiguration.rst
    Files/sql.rst
    Files/parsers.rst
    Files/messages.rst
