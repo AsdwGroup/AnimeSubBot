@@ -9,4 +9,4 @@ This package contains all the parsers.
    
    parsers.configuration.rst
    parsers.commandline.rst
-   
+   parsers.secure_configuration.rst

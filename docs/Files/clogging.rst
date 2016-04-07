@@ -1,10 +1,10 @@
-custom_logging
-==============
+clogging
+========
 
 
 .. py:class::
 
-.. automodule:: custom_logging
+.. automodule:: clogging
    :members:
    :show-inheritance:
    :inherited-members:

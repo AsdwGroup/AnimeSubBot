@@ -1,6 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+"""
+This module defines and configures the custom build argumentParser.
+"""
+
 import argparse
 import gobjects
 

@@ -12,7 +12,7 @@ import logging
 import platform
 import logging.handlers
 import multiprocessing
-from builtins import True
+
 
 # if python 2 is used
 try:

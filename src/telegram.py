@@ -1,5 +1,5 @@
-#!/usr/bin/python3.4
-# -*- coding: utf-8 -*-
+    #!/usr/bin/python3.4
+    # -*- coding: utf-8 -*-
 
 # python standard library
 import ssl
@@ -521,9 +521,9 @@ class InputTelegramApiServer(TelegramApiServer):
                 pass
             
             if Input is not None:
-
+                self.InterpretCommand(Input)
                        
-"""
+        """
         InternalQueue = multiprocessing.Queue()
         InternalQueue.put(None)
 
@@ -576,7 +576,7 @@ class InputTelegramApiServer(TelegramApiServer):
                         # This number has to be 1 bigger than the oldest unit
                         self.MasterQueue.put(MessageProcessor.UpdateId + 1)
                         
-"""
+        """
 
 class OutputTelegramApiServer(TelegramApiServer):
         pass
