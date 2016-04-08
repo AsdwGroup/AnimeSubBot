@@ -21,7 +21,7 @@ __license__ = ("License GNU General Public License "
                "https://www.gnu.org/copyleft/gpl.html"
                )
 #: 
-__version__ = 0.01
+__version__ = "0.0.3"
 #: 
 __release__ = 20160406191010
 #: 

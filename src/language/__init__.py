@@ -24,7 +24,7 @@ class Language(object):
         """
         self.RLock = multiprocessing.RLock() 
 
-    def CreateTranslationObject(
+    def CreateTranslationObject(self,
                                 Languages = ("de_DE", "en_US"),
                                 Localedir="language",
                                 ):

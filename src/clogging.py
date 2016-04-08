@@ -14,7 +14,7 @@ import logging.handlers
 import multiprocessing
 
 
-# if python 2 is used
+# compability with the python 2 curses handler
 try:
     unicode
     _unicode = True

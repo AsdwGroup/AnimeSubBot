@@ -102,7 +102,7 @@ class MessagePreProcessor(object):
         if "LanguageObject" in OptionalObjects:
             self.M_ = OptionalObjects["LanguageObject"].gettext
         else:
-            self.M_ = language.CreateTranslationObject()
+            self.M_ = language.Language().CreateTranslationObject()
 
         if "BotName" in OptionalObjects:
             # The name of the bot that is doing it's job.
@@ -171,7 +171,7 @@ class MessagePreProcessor(object):
                 Data
             )[0]["User_String"])
 
-        self.LanguageObject = language.CreateTranslationObject(
+        self.LanguageObject = language.Language().CreateTranslationObject(
             Languages=[self.LanguageName]
         )
 
@@ -395,7 +395,7 @@ class MessagePreProcessor(object):
             Data=Data
         )[0]["Internal_User_Id"]
         
-    def Chunker(ListOfObjects, SizeOfChunks):
+    def Chunker(self, ListOfObjects, SizeOfChunks):
         """
         Yield successive n-sized (SizeOfChunks) chunks from the list (ListOfObjects).
         
@@ -605,7 +605,7 @@ class MessagePreProcessor(object):
         try:
             self.LanguageName = Language
             self.LanguageObject = (
-                language.language.CreateTranslationObject(
+                language.Language().CreateTranslationObject(
                     self.LanguageName
                 )
             )

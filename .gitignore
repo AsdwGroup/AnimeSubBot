@@ -70,6 +70,12 @@ src/log.txt
 src/Log/*
 src/Logs/*
 
+# Configuration
+src/config/
+src/config/*
+src/SavedWorkload/
+src/SavedWorkload/*
+
 # pyCharm stuff
 .idea/
 

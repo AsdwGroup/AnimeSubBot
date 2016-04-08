@@ -22,6 +22,16 @@ class ConfigurationParser(configparser.RawConfigParser):
     class set by the standard python library, it add an ability to 
     automatically read the configuration file on object creation as
     well as some default configuration.
+    
+    From the python documentation:
+        This module provides the ConfigParser class which implements a 
+        basic configuration language which provides a structure similar 
+        to what’s found in Microsoft Windows INI files. You can use this
+        to write Python programs which can be customized by end users 
+        easily.
+    
+    Link to the documentation:
+        https://docs.python.org/3/library/configparser.html
     """
 
     def __init__(self,
@@ -189,12 +199,13 @@ class SecureConfigurationParser(ConfigurationParser):
     """
     This class is an extension of the custom ConfigurationParser
     class it adds an AES-type encryption to the configuration for a bit 
-    more security. 
+    more security. It forces the .psi extention that stands for 
+    pickled secured ini.
     """
                   
     def __init__(self, 
                  InternalKey,
-                 FileName = "config.pcl",
+                 FileName = "config.psi",
                  **Configuration):
         """
         The __init__ method.
@@ -220,8 +231,14 @@ class SecureConfigurationParser(ConfigurationParser):
         SHA256Enc = Crypto.Hash.SHA256.new()
         SHA256Enc.update(InternalKey.encode("utf-8"))
         self.HashKey = SHA256Enc.digest()
-                                    
+        self.BlockSize = Crypto.Cipher.AES.block_size
+        
+        # force the .psi extention
         self.FileName = FileName
+        FileInfo = os.path.splitext(FileName)
+        if FileInfo[1] != ".psi":
+            self.FileName = "{}{}".format(FileInfo[0], ".psi")
+            
         self.Padding = "|"
 
         self.Mode = Crypto.Cipher.AES.MODE_CBC
@@ -240,8 +257,8 @@ class SecureConfigurationParser(ConfigurationParser):
         Variables:
             \-
         """
-        return Crypto.Random.get_random_bytes(16)
-    
+        return Crypto.Random.new().read(self.BlockSize)
+        
     def WriteConfigurationFile(self, 
                                TelegramToken, DatabaseUser, 
                                DatabasePassword):
@@ -314,9 +331,7 @@ class SecureConfigurationParser(ConfigurationParser):
             String = String.encode("utf-8")
             
         if len(String) % 16 != 0:
-            String = b"{}{}".format(String, 
-                                   (16 - (len(String) % 16)) * self.Padding.encode("utf-8")
-                                   )
+            String = String + ((16 - (len(String) % 16)) * self.Padding.encode("utf-8"))
         IV = self.GetNewIV()
         Encryptor = Crypto.Cipher.AES.new(self.HashKey, 
                                           self.Mode, IV=IV)
@@ -362,21 +377,4 @@ class SecureConfigurationParser(ConfigurationParser):
             
         return temp  
     
-if __name__ == "__main__":
-    print("Online")
-    a = ConfigurationParser(reset_configuration=False)
-    a.ReadConfigurationFile()
-    #print(a["Telegram"]["DefaultLanguage"].split(","))
-    
-    
-    # this is a dummy key for testing
-    a = SecureConfigurationParser(InternalKey = r"PuN?~kDr39s+FT'*YQ}-j}~]>ke#3VmE")
-    a.WriteConfigurationFile(
-                             r"TelegramKey",
-                             "MySql@DatabaseUser24",
-                             "Em#NYcGb7+GGXSg4\'F_c:a]cw'qzZ5fQe@X9f"
-                             )
-    
-    a.ReadConfigurationFile()
-    #print(a["Security"]["TelegramToken"])
-    print("Offline")
+

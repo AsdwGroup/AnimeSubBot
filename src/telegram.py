@@ -1,12 +1,15 @@
-    #!/usr/bin/python3.4
-    # -*- coding: utf-8 -*-
+#!/usr/bin/env python3.4
+# -*- coding: utf-8 -*-
 
 # python standard library
+import os
 import ssl
 import json
 import gzip
 import zlib
+import time
 import queue
+import pickle
 import platform
 import urllib.parse
 import urllib.request
@@ -15,7 +18,6 @@ import multiprocessing
 import gobjects  # my own classes
 import language  # imports the _() function! (the translation feature)
 import clogging
-
 
 
 class TelegramApi(object):
@@ -72,7 +74,7 @@ class TelegramApi(object):
 
     def __init__(self,
                  ApiToken,
-                 RequestTimer,   
+                 RequestTimer,
                  **OptionalObjects
                  ):
         """
@@ -126,7 +128,7 @@ class TelegramApi(object):
         """
         
         self.ApiToken = ApiToken
-        self.BotApiUrl = "{}{}".format(TelegramApi.BASE_URL, 
+        self.BotApiUrl = "{}{}".format(TelegramApi.BASE_URL,
                                        self.ApiToken
                                        )
         
@@ -158,14 +160,10 @@ class TelegramApi(object):
                 language.Language().CreateTranslationObject()
             )
 
-            
         if "LoggingObject" in OptionalObjects:
             self.LoggingObject = OptionalObjects["LoggingObject"]
         else:
             self.LoggingObject = clogging.Logger()
-
-        if "ExitOnError" in OptionalObjects:
-            self.ExitOnError = OptionalObjects["ExitOnError"]
         
         if "IsTest" in OptionalObjects:
             self.IsTest = True
@@ -188,9 +186,9 @@ class TelegramApi(object):
             'User-agent': (("{AppName}/{Version}({Platform})"
                             "Python-urllib/{PythonBuild} from {Hosted}"
                             ).format(
-                                AppName = gobjects.__AppName__,
-                                Version = gobjects.__version__,
-                                Platform = ('; '.join(
+                                AppName=gobjects.__AppName__,
+                                Version=gobjects.__version__,
+                                Platform=('; '.join(
                                                 platform.system_alias(
                                                     platform.system(),
                                                     platform.release(),
@@ -198,8 +196,8 @@ class TelegramApi(object):
                                                     )
                                                       )
                                             ),
-                                PythonBuild = platform.python_build(),
-                                Hosted = gobjects.__hosted__
+                                PythonBuild=platform.python_build(),
+                                Hosted=gobjects.__hosted__
                                 )
                            ),
             "Content-Type":
@@ -239,9 +237,9 @@ class TelegramApi(object):
             self.RequestTimer = self.GivenRequestTimer
         try:
             with urllib.request.urlopen(
-                    Request,
-                    context=self.SSLEncryption
-            ) as Request:
+                                        Request,
+                                        context=self.SSLEncryption
+                                        ) as Request:
                 # setting the compression rate of the system
                 if self.Compressed is True:
                     RequestEncoding = Request.info().get("Accept-Encoding")
@@ -270,7 +268,7 @@ class TelegramApi(object):
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
                                            )
-                                    ) + " " +
+                                    ) + " " + 
                     self._("The server cannot or will not process the request "
                            "due to something that is perceived to be a client "
                            "error (e.g., malformed request syntax, invalid "
@@ -282,7 +280,7 @@ class TelegramApi(object):
                 self.LoggingObject.critical(
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
-                                           )) + " " +
+                                           )) + " " + 
                     self._("The ApiToken you are using has not been found in "
                            "the system. Try later or check the ApiToken for "
                            "spelling errors."),
@@ -291,7 +289,7 @@ class TelegramApi(object):
                 self.LoggingObject.error(
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
-                                           )) + " " +
+                                           )) + " " + 
                     self._("The address is forbidden to access, please try "
                            "later."),
                 )
@@ -299,7 +297,7 @@ class TelegramApi(object):
                 self.LoggingObject.error(
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
-                                           )) + " " +
+                                           )) + " " + 
                     self._("The requested resource was not found. This status "
                            "code can also be used to reject a request without "
                            "closer reason. Links, which refer to those error "
@@ -309,29 +307,25 @@ class TelegramApi(object):
                 self.LoggingObject.error(
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
-                                           )) + " " +
+                                           )) + " " + 
                     self._("The server could not fulfill its function as a "
                            "gateway or proxy, because it has itself obtained "
                            "an invalid response. Please try later."),
                 )
-                self.RequestTimer = 60000.0
             elif Error.code == 504:
                 self.LoggingObject.error(
                     self._("The web server returned the HTTPError \"{Error}\"."
                            ).format(Error=(str(Error.code) + " " + Error.reason
-                                           )) + " " +
+                                           )) + " " + 
                     self._("The server could not fulfill its function as a "
                            "gateway or proxy, because it has not received a "
                            "reply from it's servers or services within a "
                            "specified period of time.")
                 )
-
-            # For the recursive loop, so that the system can handel itself
-            # better
-            if self.ExitOnError:
-                self.LoggingObject.info(self._("Exiting the system!"))
-                raise SystemExit
-
+            return Error.code
+        except:
+            raise
+        
     def GetMe(self):
         """
         A method to confirm the ApiToken exists.
@@ -344,7 +338,7 @@ class TelegramApi(object):
         """
         request = urllib.request.Request(
             "{}/getMe".format(self.BotApiUrl),
-            headers = self.Headers
+            headers=self.Headers
         )
 
         return self.SendRequest(request)
@@ -377,7 +371,7 @@ class TelegramApi(object):
         # data have to be bytes
         MessageData = urllib.parse.urlencode(DataToBeSend).encode('utf-8')
 
-        Request = urllib.request.Request(self.BotApiUrl + "/getUpdates",
+        Request = urllib.request.Request("{}/getUpdates".format(self.BotApiUrl),
                                               data=MessageData,
                                               headers=self.Headers)
 
@@ -404,48 +398,54 @@ class TelegramApi(object):
         MessageData = urllib.parse.urlencode(
             MessageObject.GetMessage()).encode('utf-8')
 
-        Request = urllib.request.Request(self.BotApiUrl + "/sendMessage",
+        Request = urllib.request.Request("{}/sendMessage".format(self.BotApiUrl),
                                          data=MessageData,
                                          headers=self.Headers
                                          )
 
         return self.SendRequest(Request,)
 
-    def ForwardMessage(self, ChatId, FromChatId, MessageId):
+    def ForwardMessage(self, 
+                       ChatId, FromChatId, 
+                       MessageId, DisableNotification=False):
         """
         A method to forward a received message
         
         This function will maybe be build in the future for now
         it's not doing anything.
         """
-        #MessageData = {}
+        # MessageData = {}
         raise NotImplementedError
-
+    
+    def SendPhoto(self, ):
+        raise NotImplementedError
+    
 class TelegramApiServer(multiprocessing.Process):
 
     def __init__(self,
-                 Name, 
+                 Name,
                  ApiToken,
                  RequestTimer,
-                 InputQueue,
-                 OutputQueue,
+                 ControllerQueue,
+                 WorkloadQueue,
                  ConnectionEvent,
                  ShutDownEvent,
                  **OptionalObjects):
                  
-        super().__init__(name = Name)
+        super().__init__(name=Name)
         self.Name = Name
-        self.InputQueue = InputQueue
-        self.OutputQueue = OutputQueue
+        self.ControllerQueue = ControllerQueue
+        self.WorkloadQueue = WorkloadQueue
         self.ConnectionEvent = ConnectionEvent
         self.ShutDownEvent = ShutDownEvent
-        
+        self.Timeout = RequestTimer
         self.Data = {
                      "ApiToken": ApiToken,
                      "RequestTimer":RequestTimer,
                      "OptionalObjects": OptionalObjects
                      }
         
+        self.WorkloadFileDirectory = os.path.abspath("SavedWorkload")
         self.TelegramApi = None
     
     def _StartApi_(self):
@@ -453,27 +453,72 @@ class TelegramApiServer(multiprocessing.Process):
         This method will create the TelegeramApi object
         """
         self.TelegramApi = TelegramApi(
-                 ApiToken = self.Data["ApiToken"],
-                 RequestTimer = self.Data["RequestTimer"],   
-                 OptionalObjects = self.Data["OptionalObjects"]
+                 ApiToken=self.Data["ApiToken"],
+                 RequestTimer=self.Data["RequestTimer"],
+                 OptionalObjects=self.Data["OptionalObjects"]
         )
     
-    def AddToQueue(self, ElementToAdd):
+    def _CheckDirectory_(self):
         """
-        This method will add an element to the worker queue
+        This method will check if the workload directory exsits or not.
+        If it doesn't exist it will create it.
         """
-        self.OutputQueue.put(ElementToAdd, True)
-    
-    def GetElementsFromQueue(self,):
-        ElementFromQueue = None
+        
+        # check if exists or else...
+        if not os.path.isdir(self.WorkloadFileDirectory):
+            os.path.mkdir(self.WorkloadFileDirectory)
+        
+        ReadMe = os.path.join(self.WorkloadFileDirectory, "ReadMe.txt")
+        
+        if not os.path.isfile(ReadMe):
+            
+            Text = ("Please do not delete anyfiles from this directory\n"
+                    "This directory is needed for temporary saving the"
+                    "workload, so that the bot may be shut down.")
+            
+            with open(ReadMe, "w") as File:
+                File.write(Text)
+        
+    def _GetCommand_(self, Timeout):
+        """
+        This method will get the command given by the command queue.
+        """
+        Command = None
         try:
-            ElementFromQueue = self.InputQueue.get_nowait()
+            Command = self.ControllerQueue.get(False, Timeout)
         except queue.Empty:
             pass
+        except:
+            raise
         
-        return ElementFromQueue
-            
+        return Command
+        
+    def _SendOverConnection_(self, ConnectionObject, Object):
+        """
+        This method is here as a placeholder and has to be overriden by
+        the children instances.
+        
+        In this method sends an object over a connection object.
+        """
+        raise NotImplemented
+    
+    def _InterpretCommand_(self, Command):
+        """
+        This method is here as a placeholder and has to be overriden by
+        the children instances.
+        
+        In this method the command send by the input queue will be 
+        interpretet.
+        """
+        raise NotImplemented
+    
     def run(self):
+        """
+        This method is here as a placeholder and has to be overriden by
+        the children instances.
+        
+        In this method the main logic will be run.
+        """
         raise NotImplementedError
      
 class InputTelegramApiServer(TelegramApiServer):
@@ -487,68 +532,131 @@ class InputTelegramApiServer(TelegramApiServer):
                  ConnectionEvent,
                  ShutDownEvent,
                  OptionalObjects):
-                 
-        super().__init__(name = Name)
-           
+        """
+        Just initialising the subserver.
+        """
+        self.APIOffset = None
+        
+        if "APIOffset" in OptionalObjects:
+            self.APIOffset = OptionalObjects["APIOffset"]
+            
+        self.WorkloadSaveFile = "ApiWorkload.psi"    
+        self.WorkloadSaveFileFull = os.path.join(self.WorkloadFileDirectory,
+                                                 self.WorkloadSaveFile)    
+        super().__init__(name=Name)
+    
+    def AddToWorkQueue(self, ElementToAdd):
+        """
+        This method will add an element to the worker queue
+        """
+        self.WorkloadQueue.put(ElementToAdd, True)
+        
     def GetBotName(self):
         """
         This methode gets the bot name from the Api
         """
         BotName = self.TelegramApi.GetBotName()
         return BotName
-    
-    def InterpretCommand(self, Command):
-        Order, ConnectionObject = Command
-                
+        
+    def _InterpretCommand_(self, Command):
+        Order = None
+        ConnectionObject = None
+        if "Order" in Command:
+            Order = Command["Order"]
+            
+        if ConnectionObject in Command:
+            ConnectionObject = Command["ConnectionObject"]
+        
         if Order == "GetBotName":
             BotName = self.GetBotName()
-            ConnectionObject.send(BotName)
-            ConnectionObject.close()
-        else:
+            self._SendOverConnection_(ConnectionObject, BotName)
+        elif Order == "APIOffset":
             pass
-       
+            
+    def _LoadApiOffset_(self):
+        APIOffset = None
+        if os.path.isdir(self.WorkloadSaveFileFull):
+            with open(self.WorkloadSaveFileFull, "r") as InputFile:
+                APIOffset = InputFile.read()
+            
+            if isinstance(APIOffset, dir) is True:
+                if "ApiOffset" in APIOffset:
+                    self.APIOffset = APIOffset["ApiOffset"]
+                return self.APIOffset
+    
+    def _SaveApiOffset_(self,):
+        """
+        
+        """
+        
+        self._CheckDirectory_()
+        
+        DataToDump = {
+                      "ApiOffset": self.APIOffset
+                      }
+        
+        with open(self.WorkloadSaveFileFull, "wb") as OutputFile:
+            pickle.dump(DataToDump, OutputFile)
+    
+    def _GetCommentNumber_(self, MessageObject):
+        """
+        This method is responsable for getting the heighest update_id
+        from the system.
+        """
+        JDumps = json.loads(MessageObject)
+        CommentList = []
+        for i in JDumps["result"]:
+            CommentList.append(i["update_id"])
+        return max(CommentList)
+    
+    def _GetUpdates_(self, CommentNumber):
+        """
+        This method will run the get update method from the API.
+        it will return whatever the API gets.
+        
+        Variables:
+            CommentNumber                 ``integer``
+                is the number of the telegram user.
+        """
+        return self.TelegramApi.GetUpdates(CommentNumber)
+      
     def run(self):
         """
         The method where the action happens
+        
+        Variables:
+            \-
         """
+        # Times the system  will retry to build a connection to the
+        # telegram server.
+        TryAgain = 3
         while self.ShutDownEvent.is_set():
             # check the input queue for orders
-            Input = None
-
-            try:
-                Input = self.InputQueue.get_nowait()
-            except queue.Empty:
-                pass
+            
+            Input = self._GetCommand_(0.1)
             
             if Input is not None:
-                self.InterpretCommand(Input)
-                       
+                self._InterpretCommand_(Input)
+            
+            MessageObject = self._GetUpdates_(self.APIOffset)
+            
+            if MessageObject is not None:
+                if not isinstance(MessageObject, int):
+                    self.APIOffset = self._GetCommentNumber_(MessageObject)
+                    for Result in MessageObject["result"]:
+                        self.AddToWorkQueue(Result)
+                    
+                    if self.ConnectionEvent.is_set() and TryAgain == 0:
+                        self.ConnectionEvent.clear()
+                        TryAgain = 3
+                        
+                elif isinstance(MessageObject, int):
+                    if TryAgain > 0:
+                        TryAgain -= 1
+                    elif TryAgain == 0:
+                        self.ConnectionEvent.set()
+            
         """
-        InternalQueue = multiprocessing.Queue()
-        InternalQueue.put(None)
-
-        run = True
-        while run:
-            if self.MasterQueue.empty():
-                run = False
-            # Get the updates from the telegram serves.
-            if self.SqlObject.DetectConnection() is True:
-                # check if queue has something for us in it
-                CommentNumber = []
-                while True:
-                    if self.MasterQueue.empty() is False:
-                        CommentNumber.append((self.MasterQueue.get()))
-                    else:
-                        break
-                if len(CommentNumber) == 1:
-                    CommentNumber = CommentNumber[0]
-                elif len(CommentNumber) > 1:
-                    CommentNumber = max(CommentNumber)
-                else:
-                    CommentNumber = None
-
-                Results = self.TelegramObject.GetUpdates(CommentNumber)
-
                 # Do
                 if Results is not None:
                     for Message in Results["result"]:
@@ -579,7 +687,121 @@ class InputTelegramApiServer(TelegramApiServer):
         """
 
 class OutputTelegramApiServer(TelegramApiServer):
+    
+    def __init__(self,
+                 Name,
+                 ApiToken,
+                 RequestTimer,
+                 InputQueue,
+                 OutputQueue,
+                 ConnectionEvent,
+                 WorkloadDoneEvent,
+                 ShutDownEvent,
+                 OptionalObjects):
+        """
+        Just initialising the subserver.
+        """
+
+        self.WorkloadSaveFile = "Workload.psi"
+        self.WorkloadSaveFileFull = os.path.join(self.WorkloadFileDirectory,
+                                                 self.WorkloadSaveFile)
+        self.WorkloadDoneEvent = WorkloadDoneEvent
+        super().__init__(name=Name)
+        
+    def _GetWorkload_(self, TimeOut = 0.1):
+        """
+        This method will get an element from the input queue.
+        """
+        ElementFromQueue = None
+        try:
+            ElementFromQueue = self.WorkloadQueue.get(block = True,
+                                                   timeout = TimeOut)
+        except queue.Empty:
+            pass
+        except:
+            raise
+        
+        return ElementFromQueue  
+      
+    def _SaveWorkload_(self, PreviousWorkload = None):
+        """
+        Save the remaning workload to the filesystem to send them later.
+        
+        Variables:
+            PreviousWorkload              
+        """
+        Workload = []
+        # if there was some waiting work to do
+        if PreviousWorkload:
+            Workload = PreviousWorkload
+        
+        # wait for the worker process finished  its workload.   
+        self.WorkloadDoneEvent.wait()
+
+        # check if workload exists
+        while self.InputQueue.qsize() > 0:
+            Element = None
+            try:
+                Element = self.GetElementsFromQueue(0.5)
+            except queue.Empty:
+                pass
+            except:
+                raise
+            
+            if Element is not None:
+                Workload.append(Element)
+        
+        if Workload:
+            # check if exists or else...
+            if not os.path.isdir(self.WorkloadFileDirectory):
+                os.path.mkdir(self.WorkloadFileDirectory)
+            
+            with open(self.WorkloadSaveFileFull, "wb") as OutputFile:
+                pickle.dump(Workload, OutputFile)
+    
+    def _ReadWorkload_(self):
+        """
+        Check if the worload file exist and return the content, if it 
+        does. Else return an empty list.
+        """
+        Workload = []
+        if os.path.isdir(self.WorkloadFileDirectory):
+            if os.path.isfile(self.WorkloadSaveFileFull):
+                with open(self.WorkloadSaveFileFull, "rb") as InputFile:
+                    Workload = pickle.load(self.WorkloadSaveFileFull, 
+                                           InputFile)
+
+            return Workload
+        else:
+            return Workload
+        
+    def _InterpretCommand_(self, Command):
+        """
+        This method will interpret all the commands send to the sever.
+        It overrides the parent method.
+        
+        Variables:
+            Command                      ``directory``
+                contains the command and the possible addidtional 
+                options.
+        """
         pass
+    
+    def run(self):
+        Workload = self._ReadWorkload_()
+        while self.ShutDownEvent.is_set():
+            if self.ConnectionEvent.is_set():
+                self._SaveWorkload_(Workload)
+            
+            Command = self._GetCommand_(0)
+                
+            if Command is not None:
+                if isinstance(Command, dir):
+                    self._InterpretCommand_(Command)
+                    
+            Work = self._GetWorkload_(self.Timeout)
+            
+        self._SaveWorkload_(Workload)
         
 class TelegramApiServerComunicator(object):
     """
@@ -595,8 +817,8 @@ class TelegramApiServerComunicator(object):
                  OptionalObjects
                  ):
                 
-        self.InputQueue = multiprocessing.Queue()
-        self.OutputQueue = multiprocessing.Queue()  
+        self.ControllerQueue = multiprocessing.Queue()
+        self.WorkloadQueue = multiprocessing.Queue()  
         self.Name = Name
         self._BotName = None
         
@@ -608,7 +830,27 @@ class TelegramApiServerComunicator(object):
                      "ShutDownEvent":ShutDownEvent,
                      "OptionalObjects": OptionalObjects
                      }    
-
+    
+    def _PrepareServerCommand_(self, Order, ConnectionObject = None): 
+        """
+        This method will prepare the order for the server.
+        
+        Variables:
+            Order                         ``string``
+                This is the order the Server has to understand.
+                
+            ConnectionObject              ``object or None``
+                This object is for possible communication with the 
+                server process
+        """
+        Directory = {
+                     "Order": Order}
+        
+        if ConnectionObject is not None:
+            Directory["ConnectionObject"] = ConnectionObject
+            
+        return Directory
+    
     def _InitTelegramServer_(self):
         """
         This method will be overwritten by the child obejcts.
@@ -621,16 +863,26 @@ class TelegramApiServerComunicator(object):
         """
         return self.TelegramApiServer
     
-    def _SendToServer_(self, Object, ):
+    def _SendCommandToServer_(self, Object,):
         """
-        This method will send the send the Object to the server.
+        This method will send the send a command to the server.
         
         Variables
             Object                        ``object``
                 Can be everything that is pickable
         """
-        self.InputQueue.put(Object)
-              
+        self.ControllerQueue(Object)
+    
+    def _SendWorkToServer_(self, Object):
+        """
+        This method will send the send work to the server.
+        
+        Variables
+            Object                        ``object``
+                Can be everything that is pickable
+        """
+        self.WorkloadQueue.put(Object)
+    
 class OutputToTelegram(TelegramApiServerComunicator):
 
     def __init__(self,
@@ -641,14 +893,14 @@ class OutputToTelegram(TelegramApiServerComunicator):
                  **OptionalObjects):
         
         super().__init__(
-                         Name = "OutputTelegramApiServer",
-                         ApiToken = ApiToken,
-                         RequestTimer = RequestTimer,
-                         InputQueue = self.InputQueue,
-                         OutputQueue = self.OutputQueue,
-                         ConnectionEvent = ConnectionEvent,
-                         ShutDownEvent = ShutDownEvent,
-                         OptionalObjects = OptionalObjects    
+                         Name="OutputTelegramApiServer",
+                         ApiToken=ApiToken,
+                         RequestTimer=RequestTimer,
+                         InputQueue=self.InputQueue,
+                         OutputQueue=self.OutputQueue,
+                         ConnectionEvent=ConnectionEvent,
+                         ShutDownEvent=ShutDownEvent,
+                         OptionalObjects=OptionalObjects    
                          )
             
         self._InitTelegramServer_()
@@ -658,26 +910,42 @@ class OutputToTelegram(TelegramApiServerComunicator):
         This method is an override of the parent method.
         
         It simply starts the serverprocess.
+        
+        Variables:
+            \-
         """
         self.TelegramApiServer = OutputTelegramApiServer(
-            Name = self.Name,
-            ApiToken = self.ApiToken,
-            RequestTimer = self.RequestTimer,
-            InputQueue = self.InputQueue,
-            OutputQueue = self.OutputQueue,
-            ConnectionEvent = self.ConnectionEvent,
-            ShutDownEvent = self.ShutDownEvent,
-            OptionalObjects = self.OptionalObjects
+            Name=self.Name,
+            ApiToken=self.ApiToken,
+            RequestTimer=self.RequestTimer,
+            InputQueue=self.InputQueue,
+            OutputQueue=self.OutputQueue,
+            ConnectionEvent=self.ConnectionEvent,
+            ShutDownEvent=self.ShutDownEvent,
+            OptionalObjects=self.OptionalObjects
         )
     
     def SaveWorkload(self):
+        """
+        This method will senf the save the workload command to the 
+        server, to force a save to the filesystem.
+        
+        
+        Variables:
+            \-
+        """
         InputPipe, OutputPipe = multiprocessing.Pipe(False)
-        self._SendToServer_(("SaveWorkload",OutputPipe,))
-        self._BotName = InputPipe.recv()
+        self._SendToServer_(self._PrepareServerCommand_("SaveWorkload", 
+                                                        OutputPipe
+                                                        )
+                            )
+        self.ConnectionEvent.set()
+        Answser = InputPipe.recv()
+        if Answser is True:
+            self.ConnectionEvent.clear()
         InputPipe.close()
         OutputPipe.close()
         
-    
 class InputFromTelegram(TelegramApiServerComunicator):
      
     def __init__(self,
@@ -689,12 +957,12 @@ class InputFromTelegram(TelegramApiServerComunicator):
                  ):
         
         super().__init__(
-            Name = "InputTelegramApiServer",
-            ApiToken = ApiToken,
-            RequestTimer = RequestTimer,
-            ConnectionEvent = ConnectionEvent,
-            ShutDownEvent = ShutDownEvent,
-            OptionalObjects = OptionalObjects
+            Name="InputTelegramApiServer",
+            ApiToken=ApiToken,
+            RequestTimer=RequestTimer,
+            ConnectionEvent=ConnectionEvent,
+            ShutDownEvent=ShutDownEvent,
+            OptionalObjects=OptionalObjects
         ) 
           
         self._InitTelegramServer_()
@@ -706,16 +974,16 @@ class InputFromTelegram(TelegramApiServerComunicator):
         It simply starts the serverprocess.
         """
         self.TelegramApiServer = InputTelegramApiServer(
-            Name = self.Name,
-            ApiToken = self.ApiToken,
-            RequestTimer = self.RequestTimer,
-            InputQueue = self.InputQueue,
-            OutputQueue = self.OutputQueue,
-            ConnectionEvent = self.ConnectionEvent,
-            ShutDownEvent = self.ShutDownEvent,
-            OptionalObjects = self.OptionalObjects
+            Name=self.Name,
+            ApiToken=self.ApiToken,
+            RequestTimer=self.RequestTimer,
+            InputQueue=self.InputQueue,
+            OutputQueue=self.OutputQueue,
+            ConnectionEvent=self.ConnectionEvent,
+            ShutDownEvent=self.ShutDownEvent,
+            OptionalObjects=self.OptionalObjects
         )  
-                             
+                           
     def GetBotName(self):
         """
         This method will first get the bot name from the server process
@@ -723,7 +991,9 @@ class InputFromTelegram(TelegramApiServerComunicator):
         """
         if self._BotName is None:
             InputPipe, OutputPipe = multiprocessing.Pipe(False)
-            self._SendToServer_(("GetBotName",OutputPipe,))
+            self._SendToServer_(self._PrepareServerCommand_("GetBotName", 
+                                                            OutputPipe)
+                                )
             self._BotName = InputPipe.recv()
             InputPipe.close()
             OutputPipe.close()

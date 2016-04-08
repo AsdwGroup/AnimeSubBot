@@ -54,7 +54,7 @@ class CustomParser(argparse.ArgumentParser):
             raise ValueError("Missing LanguageObject")
 
         Description = self._(
-            "An in python written telegram bot, called BetterPollBot."
+            "An in python written telegram bot, called AnimeSubBot."
         )
 
         Epilog = (
