@@ -16,6 +16,7 @@ Top level files:
    Files/gobjects.rst
    Files/clogging.rst
    Files/telegram.rst
+   Files/worker.rst
 
 Sub modules:
    

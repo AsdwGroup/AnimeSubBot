@@ -2,7 +2,7 @@ clogging
 ========
 
 
-.. py:class::
+
 
 .. automodule:: clogging
    :members:

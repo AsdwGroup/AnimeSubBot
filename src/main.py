@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3.4
 # -*- coding: utf-8 -*-
 
 """
@@ -29,12 +29,10 @@ except ImportError:
 import sql
 import gobjects
 import language
-import telegram
 import clogging
 import parsers.commandline
 import parsers.configuration
-import messages.msg_processor
-# import mp_background
+import worker
 
 def RestartProgram():
     """
@@ -44,15 +42,6 @@ def RestartProgram():
     """
     python = sys.executable
     os.execl(python, python, * sys.argv)
-
-def ProcessTheData():
-    """
-    Let's the system work on multiple threads independently from each other.
-
-    """
-
-    raise NotImplementedError
-
 
 def Main():
     """
@@ -103,9 +92,9 @@ def Main():
 
         # Create the configuration class and read the configuration class.
         Configuration = parsers.configuration.ConfigurationParser()
-
+        
         # Create the language processor
-        LanguageMasterObject = language.CreateTranslationObject(
+        LanguageMasterObject = language.Language().CreateTranslationObject(
             Configuration["Telegram"]["DefaultLanguage"].split(","))
 
         # This is the language objects only value

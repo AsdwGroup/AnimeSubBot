@@ -195,6 +195,24 @@ class ConfigurationParser(configparser.RawConfigParser):
 
         self.read(self.FileName, )
 
+    def AddSecureConfigurationParser(self, ParserObject):
+        """
+        This method is needed to combine the sections of the 
+        SecureConfigurationParser with the ones of the 
+        ConfigurationParser class.
+        
+        Variables:
+            ParserObject                  ``object``
+                The parser that will be combined.
+        """
+        for Section in ParserObject.sections():
+            self.add_section(Section)
+            for Configuration in ParserObject[Section]:
+                self.set(Section, 
+                        Configuration,
+                        ParserObject[Section][Configuration]
+                        )
+
 class SecureConfigurationParser(ConfigurationParser):
     """
     This class is an extension of the custom ConfigurationParser

@@ -5,9 +5,9 @@ configuration = SourceFileLoader("configuration", "../src/parsers/configuration.
 
 if __name__ == "__main__":
     print("Online")
-    a = configuration.ConfigurationParser(reset_configuration=False)
-    a.ReadConfigurationFile()
-    #print(a["Telegram"]["DefaultLanguage"].split(","))
+    b = configuration.ConfigurationParser(reset_configuration=False)
+    b.ReadConfigurationFile()
+    print(b["Telegram"]["DefaultLanguage"].split(","))
     
     
     # this is a dummy key for testing
@@ -20,4 +20,6 @@ if __name__ == "__main__":
     
     a.ReadConfigurationFile()
     print(a["Security"]["TelegramToken"])
+    b.AddSecureConfigurationParser(a)
+    print(b["Security"]["TelegramToken"])
     print("Offline")

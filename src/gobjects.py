@@ -15,7 +15,7 @@ __copyright__ = "Copyright © Adrian Hornung 2013-2016"
 #: 
 __credits__ = ["Adrian Hornung"]
 #: 
-__translation__ = ["Jonas Löw", "Adrian Hornung"]
+__translation__ = ["Adrian Hornung"]
 #: 
 __license__ = ("License GNU General Public License "
                "https://www.gnu.org/copyleft/gpl.html"

@@ -1,7 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sys
 import json
 
 
@@ -120,7 +119,34 @@ class MessageToBeSend(object):
         self.DisableNotification = DisableNotification
         self.ReplyToMessageId = ReplyToMessageId
         self.ReplyMarkup = {}
+    
+    def SetParserMode(self, Parser="HTML"):
+        """
+        Send Markdown or HTML, if you want Telegram apps to show bold, 
+        italic, fixed-width text or inline URLs in your bot's message.
         
+        .. code-block:: Markdown\n
+            *bold text*
+            _italic text_
+            [text](URL)
+            `inline fixed-width code`
+            ```pre-formatted fixed-width code block```
+            
+        .. code-block:: HTML\n
+            <b>bold</b>, <strong>bold</strong>
+            <i>italic</i>, <em>italic</em>
+            <a href="URL">inline URL</a>
+            <code>inline fixed-width code</code>
+            <pre>pre-formatted fixed-width code block</pre>
+            
+        Variables:
+            Parser                       ``string``
+                The parser type either html or markdown
+        
+        """
+        if Parser in ("Markdown", "HTML"):
+            self.ReplyMarkup["parse_mode"] = Parser
+               
     def ReplyKeyboardMarkup(self, 
                             Keyboard,
                             ResizeKeyboard = False, 
@@ -245,7 +271,7 @@ class MessageToBeSend(object):
         self.ReplyMarkup["force_reply"] = True
         
         if Selective and "selective" not in self.ReplyMarkup:
-           self.ReplyMarkup["selective"] = Selective
+            self.ReplyMarkup["selective"] = Selective
         
     def GetMessage(self):
         """
@@ -282,5 +308,3 @@ class MessageToBeSend(object):
             
         return DataToBeSend
     
-if __name__ == "__main__":
-    raise NotImplementedError

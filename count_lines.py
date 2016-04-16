@@ -50,7 +50,7 @@ if __name__ == "__main__":
         "LC_MESSAGES",
         "config.ini",
          #"setup.py",
-            "Conf.pcl"]
+         ".psi"]
     path_to_files = "./src"
     count = True
 

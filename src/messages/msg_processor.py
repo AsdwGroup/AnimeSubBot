@@ -49,7 +49,13 @@ class MessagePreProcessor(object):
     
     """
 
-    def __init__(self, MessageObject, **OptionalObjects):
+    def __init__(self, 
+                 MessageObject,
+                 SqlObject,
+                 LanguageObject,
+                 LoggingObject,
+                 ConfigurationObject,
+                  **OptionalObjects):
         """
         Variables:
             MessageObject                 ``object``
@@ -67,48 +73,19 @@ class MessagePreProcessor(object):
         self.ConfigurationObject = None
 
         # SqlObjects
-        self.SqlObject = None
-        self.SqlCursor = None
+        self.SqlObject = SqlObject
+        # The object get's it's own cursor
+        self.SqlCursor = self.SqlObject.CreateCursor()
 
-        if "LoggingObject" in OptionalObjects:
-            self.LoggingObject = OptionalObjects["LoggingObject"]
-        else:
-            self.LoggingObject = clogging.Logger()
+        self.LoggingObject = LoggingObject
 
-        if "ConfigurationObject" in OptionalObjects:
-            self.ConfigurationObject = OptionalObjects["ConfigurationObject"]
-        else:
-            self.ConfigurationObject = (
-                parsers.configuration.ConfigurationParser()
-            )
-
-        if "SqlObject" in OptionalObjects:
-            self.SqlObject = OptionalObjects["SqlObject"]
-
-            # The object get's it's own cursor so that there will be no 
-            # problems in the future making the system multi threading safe.
-            self.SqlCursor = self.SqlObject.CreateCursor()
-
-        else:
-            self.LoggingObject.error(self._("The sql object is missing, please"
-                                            " contact your administrator.")
-                                     )
-            raise ValueError(self._("The sql object is missing, please contact"
-                                    " your administrator.")
-                             )
+        self.ConfigurationObject = ConfigurationObject
 
         # This variable is needed for the logger so that the log end up 
         # getting printed in the correct language.
-        if "LanguageObject" in OptionalObjects:
-            self.M_ = OptionalObjects["LanguageObject"].gettext
-        else:
-            self.M_ = language.Language().CreateTranslationObject()
+        self.M_ = LanguageObject.CreateTranslationObject().gettext
 
-        if "BotName" in OptionalObjects:
-            # The name of the bot that is doing it's job.
-            self.BotName = OptionalObjects["BotName"]["result"]["username"]
-        else:
-            self.BotName = gobjects.__AppName__
+
 
         if "update_id" in MessageObject:
             # The update‘s unique identifier. Update identifiers start from a
@@ -659,6 +636,7 @@ class MessageProcessor(MessagePreProcessor):
         }
     
     """
+
     def InterpretMessage(self):
         """
         This method interprets the user text.

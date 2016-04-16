@@ -29,11 +29,12 @@ class Api(object):
     def __init__(self,
                  User,
                  Password,
-                 DatabaseName=None,
+                 LanguageObject,
+                 LoggingObject,
+                 DatabaseName = None,
                  Host="127.0.0.1",
                  Port="3306",
-                 ReconnectTimer = 3000,
-                 **OptionalObjects):
+                 ReconnectTimer = 3000,):
 
         """
         This API enables an easy DatabaseConnection to the mysql driver 
@@ -67,27 +68,14 @@ class Api(object):
         self._DieOnLostConnection = False
 
         # Predefining some attributes so that they later can be used for evil.
-        self.LanguageObject = None
-        self.LoggingObject = None
         
-        if "OptionalObjects" in OptionalObjects:
-            OptionalObjects = OptionalObjects["OptionalObjects"]
-        
-        if "LanguageObject" in OptionalObjects:
-            self.LanguageObject = OptionalObjects["LanguageObject"]
-        else:
-            self.LanguageObject = (
-                language.CreateTranslationObject()
-            )
-
+        self.LanguageObject = LanguageObject.CreateTranslationObject()
         # This is the language objects only value. 
         # It enables the translation of the texts. 
         self._ = self.LanguageObject.gettext
 
-        if "LoggingObject" in OptionalObjects:
-            self.LoggingObject = OptionalObjects["LoggingObject"]
-        else:
-            self.LoggingObject = clogging.Logger()
+        self.LoggingObject = LoggingObject
+
 
         # Create the connection to the database.
         self.DatabaseConnection = None
@@ -113,6 +101,7 @@ class Api(object):
                 # "use_pure":False,
                 "raise_on_warnings": True,
             }
+            
             if self.DatabaseName:
                 config['database'] = self.DatabaseName
 
@@ -265,8 +254,8 @@ class Api(object):
                 else:
                     Connection = False
                     self.LoggingObject.critical(self._(
-                        "There is no connection to the database, please "
-                        "contact your administrator!")
+                        "There is no connection to the database, please"
+                        " contact your administrator!")
                     )
             else:
                 Connection = False
@@ -384,43 +373,6 @@ class Api(object):
                     Query=Query,
                     Data=Data)
             )
-
-    def _CreateDatabase_(self, Cursor, DatabaseName):
-        """
-        This method will create a database. Use with caution!
-        
-        Variables:
-            Cursor                ``object``
-                contains the cursor object
-            DatabaseName          ``string``
-                contains the database name that has to be created
-        """
-        Query = ("CREATE DATABASE IF NOT EXISTS {DatabaseName} DEFAULT "
-                "CHARACTER SET 'utf8'".format(DatabaseName=DatabaseName))
-
-        self.ExecuteTrueQuery(
-            Cursor,
-            Query
-        )
-
-    def _DeleteDatabase_(self, Cursor, DatabaseName):
-        """
-        This method will drop a database. Use with caution!
-        
-        Variables:
-            Cursor                ``object``
-                contains the cursor object
-            DatabaseName          ``string``
-                contains the database name that has to be dropped
-        """
-        Query = ("DROP DATABASE {DatabaseName};".format(
-            DatabaseName=DatabaseName)
-        )
-
-        self.ExecuteTrueQuery(
-            Cursor,
-            Query
-        )
 
     def CreateTable(self,
                     Cursor,
@@ -961,8 +913,7 @@ class Api(object):
         """
 
         self.DatabaseConnection.rollback()
-        
-        
+                
 class SqlDatabaseInstaller(object):
     """
     This class is soley here for the installation of the database 
@@ -1211,7 +1162,7 @@ class SqlDatabaseInstaller(object):
     def __init__(self,
                  User,
                  Password,
-                 DatabaseName=None,
+                 DatabaseName,
                  Host="127.0.0.1",
                  Port="3306",
                  ReconnectTimer = 3000,
@@ -1239,7 +1190,7 @@ class SqlDatabaseInstaller(object):
         self.SqlObject = Api(
                 User = User,
                 Password = Password,
-                DatabaseName = DatabaseName,
+                DatabaseName = None, # This is only now
                 Host = Host,
                 Port = Port,
                 ReconnectTimer = ReconnectTimer,
@@ -1247,12 +1198,32 @@ class SqlDatabaseInstaller(object):
             )
             
         self.Cursor = self.SqlObject.CreateCursor()
-        
+        self.DatabaseName = self.DatabaseName
         try:
             self._CreateMainDatabase_()
         except:
             self.SqlObject.Rollback()
             raise
+    
+    def Install(self):
+        self._CreateDatabase_(self.Cursor, self.DatabaseName)
+    def _CreateDatabase_(self, Cursor, DatabaseName):
+        """
+        This method will create a database. Use with caution!
+        
+        Variables:
+            Cursor                ``object``
+                contains the cursor object
+            DatabaseName          ``string``
+                contains the database name that has to be created
+        """
+        Query = ("CREATE DATABASE IF NOT EXISTS {DatabaseName} DEFAULT "
+                "CHARACTER SET 'utf8'".format(DatabaseName=DatabaseName))
+
+        self.ExecuteTrueQuery(
+            Cursor,
+            Query
+        )
     
     def _CreateMainDatabase_(self):
         """
@@ -1350,7 +1321,45 @@ class SqlDatabaseInstaller(object):
         # commit all the changes
         self.SqlObject.Commit()
        
-
-       
+class MasterApi(object):
+    def __init__(self,                 
+                 User,
+                 Password,
+                 LanguageObject,
+                 LoggingObject,
+                 DatabaseName = None,
+                 Host="127.0.0.1",
+                 Port="3306",
+                 ReconnectTimer = 3000,):
+        self.User = User
+        self.Password = Password
+        self.DatabaseName = DatabaseName
+        self.DatabaseHost = Host
+        self.DatabasePort = Port
+        self.ReconnectTimer = ReconnectTimer
+        
+        self.LanguageObject = LanguageObject
+        self.LoggingObject = LoggingObject
+    
+    def New(self):
+        """
+        This method will return a new database object for the subprocess
+        to connect to.
+        
+        Variables:
+            \-
+        """
+        DatabaseObject = Api(
+                 User = self.User,
+                 Password = self.Password,
+                 LanguageObject = self.LanguageObject,
+                 LoggingObject = self.LoggingObject,
+                 DatabaseName = self.DatabaseName,
+                 Host = self.DatabaseHost,
+                 Port = self.DatabasePort,
+                 ReconnectTimer = self.ReconnectTimer,
+                             )
+        return DatabaseObject     
+             
 if __name__ == '__main__':
     raise NotImplementedError

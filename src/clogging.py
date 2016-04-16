@@ -413,7 +413,8 @@ class LoggingProcessServer(multiprocessing.Process):
                 LoggingLevel = "debug",
                 CursesObject = None, 
                 LoggingQueue = None,
-                ShutdownEvent = None):
+                ShutdownEvent = None,
+                **OptionalObjects):
         
         """
         An init function in which the logging data and multiprocess access is initialied.
@@ -516,7 +517,40 @@ class LoggingProcessServer(multiprocessing.Process):
             "LoggingLevel": LoggingLevel,
             "CursesObject": CursesObject,
         }
-            
+        
+        if OptionalObjects:
+            self.LanguageObject = OptionalObjects["LanguageObject"]
+            self._ = self.LanguageObject.CreateTranslationObject()
+    
+    def AnalyseLog(self, MessageOfLog):
+        AllowedTypes = (
+                        "DEBUG",
+                        "INFO",
+                        "WARNING",
+                        "ERROR",
+                        "LOG"
+                        )
+        
+        TypeOfLog = LoggingObject["Type"].upper()
+        MessageOfLog = LoggingObject["Message"]
+        
+        if TypeOfLog in AllowedTypes:
+            if TypeOfLog == "DEBUG":
+                self.Logger.debug(MessageOfLog)
+            elif TypeOfLog == "INFO":
+                self.Logger.info(MessageOfLog)
+            elif TypeOfLog == "WARNING":
+                self.Logger.warning(MessageOfLog)
+            elif TypeOfLog == "ERROR":
+                self.Logger.error(MessageOfLog)
+            elif TypeOfLog == "LOG":
+                self.Logger.log(MessageOfLog)
+        else:
+            raise TypeError(_("MessageOfLog {TypeOfLog} was not in"
+                              " AllowedTypes").format(
+                                                TypeOfLog = TypeOfLog)
+                            )
+        
     def run(self):
         """
         This methode overrides the parent method.
@@ -550,25 +584,10 @@ class LoggingProcessServer(multiprocessing.Process):
                     raise
                 
                 if LoggingObject is not None:
+                    self.AnalyseLog(LoggingObject)
 
-                    TypeOfLog = LoggingObject["Type"].upper()
-                    MessageOfLog = LoggingObject["Message"]
-                    
-                    if TypeOfLog == "DEBUG":
-                        self.Logger.debug(MessageOfLog)
-                    elif TypeOfLog == "INFO":
-                        self.Logger.info(MessageOfLog)
-                    elif TypeOfLog == "WARNING":
-                        self.Logger.warning(MessageOfLog)
-                    elif TypeOfLog == "ERROR":
-                        self.Logger.error(MessageOfLog)
-                    elif TypeOfLog == "LOG":
-                        self.Logger.log(MessageOfLog)
-                    else:
-                        raise TypeError
-                else:
-                    raise TypeError
-            time.sleep(self.TimeToSleep) # giving the system some sleep
+                
+
                     
 class LoggingProcessSender(object):
     """
@@ -677,6 +696,11 @@ class LoggingProcessSender(object):
         
         self.LoggingServer.start()
     
+    def GetProcessenderW(self):
+        SenderW = LoggingProcessSerderW(
+                                        
+                                        )
+    
     def _GetSubProcessPid_(self):
         """
         This methode will return the subprocess object.
@@ -688,6 +712,91 @@ class LoggingProcessSender(object):
         This method will send all the logging messages to the queue
         where they will arrive at the logging process.
         """
+        Directory = {
+            "Type": version,
+            "Message": msg,
+        }
+            
+        self.LoggingQueue.put_nowait(Directory)
+
+    def debug(self, msg):
+        """
+        This message act's as a buffer for the debug type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("DEBUG", msg)
+        
+    def info(self, msg):
+        """
+        This message act's as a buffer for the info type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("INFO", msg)
+        
+    def warning(self, msg):
+        """
+        This message act's as a buffer for the warning type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("WARNING", msg)
+        
+    def error(self, msg):
+        """
+        This message act's as a buffer for the error type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("ERROR", msg)
+        
+    def critical(self, msg):
+        """
+        This message act's as a buffer for the critical type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("CRITICAL", msg)
+        
+    def exception(self, msg):
+        """
+        This message act's as a buffer for the exceptiontype logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("EXCEPTION", msg)
+        
+    def log(self, msg):
+        """
+        This message act's as a buffer for the log type logs so that the message can be sent
+        to the queue
+        """
+        self._InsetIntoQueue_("LOG", msg)
+
+class LoggingProcessSerderW(object):
+    """
+    This class is build as process special version of the 
+    LoggingProcessSender class. However this class is build for the 
+    different subprocesses where the messages will be added the name of 
+    the subprocess. And it will be returned by the LoggingProcessSender
+    class.
+    
+    Example:
+        [xx.xx.xx] - [xx:xx:xx] - [ERROR] - [worker-XX] - Error message.
+    """
+    
+    def __init__(self,
+                 LoggingQueue,
+                 ):
+        self.LoggingQueue = LoggingQueue
+    
+    def _InsetIntoQueue_(self, version, msg):
+        """
+        This method will send all the logging messages to the queue
+        where they will arrive at the logging process.
+        """
+       
+        msg = ("[{processName}] - {message}".format(
+                processName = multiprocessing.current_process().name,
+                message = msg
+                )
+               )
+        
         Directory = {
             "Type": version,
             "Message": msg,

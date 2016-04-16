@@ -11,40 +11,51 @@ In this file the function _() or self._() will be initialised.
 import gettext
 import multiprocessing
 
+
 class Language(object):
     """
     The purpose of this class is to keep the CreateTranslationObject 
     function multiprocessing safe.
     """
     
-    def __init__(self):
+    def __init__(self,
+                 DefaultLanguages,):
         """
         Variables:
-            \-
+            DefaultLanguages              ``list``
+                the default languages of the bot.
         """
         self.RLock = multiprocessing.RLock() 
-
+        self.DefaultLanguages = DefaultLanguages
+        self.Localedir = "language"
+        self.Domain = "Telegram"
+        
     def CreateTranslationObject(self,
-                                Languages = ("de_DE", "en_US"),
-                                Localedir="language",
+                                Languages = None,
                                 ):
         """
         This function returns a gettext object.
 
         Variables:
-            Languages            ``array of strings``
+            Languages            ``array of strings or None``
                 contains the language string
-            Localedir            ``string``
-                contains the Language location
         """
+        LanguageObject = None
+        
+        # if Language has been given 
         if isinstance(Languages, str):
             Languages = [Languages]
+        elif Languages is None:
+            Languages = self.DefaultLanguages
+        else:
+            raise TypeError
         
         with self.RLock:
-            LanguageObject = gettext.translation("Telegram",
-                                       localedir=Localedir,
-                                       languages=Languages
-                                       )
+            LanguageObject = gettext.translation(
+                                    domain = self.Domain,
+                                    localedir=self.Localedir,
+                                    languages=Languages
+                                )
 
         return LanguageObject
 

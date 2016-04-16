@@ -48,7 +48,7 @@ class CustomParser(argparse.ArgumentParser):
             raise ValueError("Missing ConfigurationObject")
 
         if "LanguageObject" in OptionalObjects:
-            self.LanguageObject = OptionalObjects["LanguageObject"]
+            self.LanguageObject = OptionalObjects["LanguageObject"].CreateTranslationObject()
             self._ = self.LanguageObject.gettext
         else:
             raise ValueError("Missing LanguageObject")
