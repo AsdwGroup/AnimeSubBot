@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 import time
 import queue
+import gettext
 import multiprocessing
 
+import sql
 import gobjects
 import telegram
 import messages.msg_processor
@@ -24,8 +26,7 @@ class MainWorker(multiprocessing.Process):
                  ShutDownEvent,
                  Configuration,
                  Logging,
-                 LanguageObject,
-                 SqlObject,
+                 Language,
                  BotName = None):
         '''
         Constructor
@@ -53,27 +54,32 @@ class MainWorker(multiprocessing.Process):
         self.ShutdownEvent = ShutDownEvent
         self.Configuration = Configuration
         self.Logging = Logging
-        self.LanguageObject = LanguageObject
-        self._ = LanguageObject.CreateTranslationObject()
+        self.LanguageObject = Language
+        
         self.ConnectionEvent = None
         self.WorkloadDoneEvent = None
+        self.SqlDistributor = None
+        
         if BotName is not None:
             self.BotName = BotName
         else:
             self.BotName = gobjects.__AppName__
         
+        self.WorkerCount = 1
+        self.MaxWorkerCount = self.Configuration["Telegram"]["MaxWorker"]
         self.WorkerList = {}
         """
-        WorkerList = {
-            WorkerName: {
-                "WorkerName": WorkerName
-                "WorkerShutDownEvent": EventObject,
-                "WorkerObject": ProcessObject,
+        ...code-block::python\n
+            WorkerList = {
+                WorkerName: {
+                    "WorkerName": WorkerName,
+                    "WorkerShutDownEvent": EventObject,
+                    "WorkerObject": ProcessObject,
+                    "WorkloadEvent": WorkloadEvent,
+                }
             }
-        }
         """
-        self.WorkerCount = 1
-        
+
     
     def _ShutdownWorker_(self, Worker):
         """
@@ -97,14 +103,14 @@ class MainWorker(multiprocessing.Process):
             time.sleep(0.1)
         # signalising all the worker that the system is shutting down.            
         for Worker in self.WorkerList.keys():
-            self._ShutdownWorker_(Worker)
-    
+            self._ShutdownWorker_(self.WorkerList[Worker])
+        self.OutputAPI["ShutdownEvent"].set()
         self.OutputAPI["WorkloadEvent"].set()
-        self.OutputAPI[""]
-    
+        self.OutputAPI["Object"].join()
+           
     def _StartWorker_(self,):
         
-        WorkerName = "{}{}".format(DEFAULT_WORKER_NAME, 
+        WorkerName = "{}{}".format(MainWorker.DEFAULT_WORKER_NAME, 
                                    self.WorkerCount
                                    )
         ProcessShutdownEvent = multiprocessing.Event()
@@ -115,11 +121,12 @@ class MainWorker(multiprocessing.Process):
                         InternalName = WorkerName,
                         ShutDownEvent = ProcessShutdownEvent,
                         Configuration = self.Configuration,
-                        Logging = self.Logging,
+                        Logging = self.Logging.GetProcessenderW(),
                         LanguageObject = self.LanguageObject,
+                        SqlObject = self.SqlDistributor,
                         InputQueue = self.InputAPI["WorkerQueue"],
                         OutputQueue = self.OutputAPI["WorkerQueue"],
-                           )
+                        )       
         
         Worker.start()
         
@@ -131,61 +138,85 @@ class MainWorker(multiprocessing.Process):
         self.WorkerCount += 1
                 
     def _InitialiseAPI_(self):
+        
+        self._ = self.LanguageObject.CreateTranslationObject()
+        
+        self.SqlDistributor = sql.DistributorApi(
+                    User = self.Configuration["Security"]["DatabaseUser"],
+                    Password = self.Configuration["Security"]["DatabasePassword"],
+                    LanguageObject = self.LanguageObject,
+                    LoggingObject = self.Logging,
+                    DatabaseName =  self.Configuration["MySQL"]["DatabaseName"],
+                    Host = self.Configuration["MySQL"]["DatabaseHost"],
+                    Port = self.Configuration["MySQL"]["DatabasePort"],
+                    ReconnectTimer = float(self.Configuration["MySQL"]["ReconnectionTimer"]),
+                    )
+        
+        
+        
         self.ConnectionEvent = multiprocessing.Event()
-        self.WorkloadDoneEvent = multiprocessing.Event()
-
+        
+        self.InputAPI["WorkloadEvent"] = multiprocessing.Event()
         self.InputAPI["ShutdownEvent"] = multiprocessing.Event()
         self.InputAPI["WorkerQueue"] = multiprocessing.Queue()
         self.InputAPI["ControlQueue"] = multiprocessing.Queue()
         
         self.InputAPI["Object"] = telegram.InputTelegramAPI(
-                                                          # whatever
-                ApiToken = self.Configuration["Secure"]["ApiToken"],
-                RequestTimer = self.Configuration["Telegram"]["RequestTimer"],
-                ShutDownEvent = self.InputAPI["WorkerQueue"],
-                ConnectionEvent = self.ConnectionEvent,
-                                                          )
+                 ApiToken = self.Configuration["Security"]["TelegramToken"],
+                 RequestTimer = self.Configuration["Telegram"]["RequestTimer"],
+                 LoggingObject = self.Logging,
+                 LanguageObject = self.LanguageObject,
+                 ControllerQueue = self.InputAPI["ControlQueue"],
+                 WorkloadQueue = self.InputAPI["WorkerQueue"],
+                 ConnectionEvent = self.ConnectionEvent,
+                 WorkloadDoneEvent = self.InputAPI["WorkloadEvent"],
+                 ShutDownEvent = self.InputAPI["ShutdownEvent"],
+                 )
+
+        self.OutputAPI["WorkloadEvent"] = multiprocessing.Event()
         self.OutputAPI["ShutdownEvent"] = multiprocessing.Event()
         self.OutputAPI["WorkerQueue"] = multiprocessing.Queue()
         self.OutputAPI["ControlQueue"] = multiprocessing.Queue()
         
-        self.OutputAPI["Object"] = telegram.InputTelegramAPI(
-                                                          # whatever
-                ApiToken = self.Configuration["Secure"]["ApiToken"],
-                RequestTimer = self.Configuration["Telegram"]["RequestTimer"],
+        self.OutputAPI["Object"] = telegram.OutputTelegramAPI(
+                 ApiToken = self.Configuration["Security"]["TelegramToken"],
+                 RequestTimer = self.Configuration["Telegram"]["RequestTimer"],
                  LoggingObject = self.Logging,
                  LanguageObject = self.LanguageObject,
                  ControllerQueue = self.OutputAPI["ControlQueue"],
                  WorkloadQueue = self.OutputAPI["WorkerQueue"],
                  ConnectionEvent = self.ConnectionEvent,
-                 WorkloadDoneEvent = self.WorkloadDoneEvent,
+                 WorkloadDoneEvent = self.OutputAPI["WorkloadEvent"],
                  ShutDownEvent = self.OutputAPI["ShutdownEvent"],
-                                                          )
+                 )
         
     def run(self):
-        self.InitialiseAPI()
+        self._InitialiseAPI_()
         LastLoad = None
-        self.StartWorker()
-        while self.ShutdownEvent.is_set():
-            WorkloadAmount = self.InputAPI["WorkerQueue"].qsize()
-            Workload = (WorkloadAmount / 30)
-            LastLoad = Workload
-            
-            WorkerAmmount = len(self.WorkerList.keys())
-            
-            if Workload > WorkerAmmount:
-                # creat a new worker.
-                self.StartWorker()
-            elif Workload < WorkerAmmount:
-                # shutdown the yongest worker if needed
-                if Workload > 1:
-                    self._ShutdownWorker_(sorted(self.WorkerList.keys(),
-                                                  reverse=True)
-                                          )
-            
-            time.sleep(0.5)    
+        self._StartWorker_()
+        try:
+            while self.ShutdownEvent.is_set():
+                WorkloadAmount = self.InputAPI["WorkerQueue"].qsize()
+                Workload = (WorkloadAmount / 30)
+                LastLoad = Workload
+                
+                WorkerAmmount = self.WorkerCount
+                
+                if Workload > WorkerAmmount:
+                    # creat a new worker.
+                    if self.MaxWorker >= WorkerAmmount:
+                        self.StartWorker()
+                elif Workload < WorkerAmmount:
+                    # shutdown the yongest worker if needed
+                    if Workload > 1:
+                        self._ShutdownWorker_(sorted(self.WorkerList.keys(),
+                                                      reverse=True)
+                                              )
+                
+                time.sleep(0.5)    
         # shutting down all the subprocesses.
-        self._ShutdownAll_()
+        finally:
+            self._ShutdownAll_()
         
 class SubWorker(multiprocessing.Process):
 
@@ -204,6 +235,7 @@ class SubWorker(multiprocessing.Process):
         Constructor
         '''
         super().__init__(name = InternalName)
+        
         self.BotName = BotName
         self.InternalName = InternalName
         self.ShutdownEvent = ShutDownEvent
@@ -214,7 +246,7 @@ class SubWorker(multiprocessing.Process):
         self.InputQueue = InputQueue
         self.OutputQueue = OutputQueue
     
-    def _GetWorkFromQueue(self, Timeout = 0.05):
+    def _GetWorkFromQueue_(self, Timeout = 0.05):
         Work = None
         try:
             Work = self.InputQueue.get(
@@ -232,23 +264,26 @@ class SubWorker(multiprocessing.Process):
         self.OutputQueue.put(Object)
     
     def run(self):
-        while self.ShutdownEvent.is_clear():
-            Timeout = 0.05
-            while not self.InputQueue.empty():
-                Work = self._GetWorkFromQueue(Timeout)
-                MessageProcessor = messages.msg_processor(
-                                Work,
-                                LanguageObject = self.LanguageObject,
-                                SqlObject = self.SqlObject,
-                                ConfigurationObject = self.Configuration        
-                                                          )
-                InterpretedMessage = MessageProcessor.InterpretMessage()
-                
-                if InterpretedMessage is not None:
-                    if isinstance(InterpretedMessage, list):
-                        for Message in InterpretedMessage:
-                            self._SendToQueue(Message)
-                    elif isinstance(InterpretedMessage, dict):
-                        self._SendToQueue(InterpretedMessage)
-            
-        
+        self.SqlObject = self.SqlObject.New()
+        try:
+            while not self.ShutdownEvent.is_set():
+                Timeout = 0.05
+
+                Work = self._GetWorkFromQueue_(Timeout)
+                if Work is not None:
+                    MessageProcessor = messages.msg_processor(
+                                    Work,
+                                    LanguageObject = self.LanguageObject,
+                                    SqlObject = self.SqlObject,
+                                    ConfigurationObject = self.Configuration
+                                    )
+                    InterpretedMessage = MessageProcessor.InterpretMessage()
+                    
+                    if InterpretedMessage is not None:
+                        if isinstance(InterpretedMessage, list):
+                            for Message in InterpretedMessage:
+                                self._SendToQueue(Message)
+                        elif isinstance(InterpretedMessage, dict):
+                            self._SendToQueue(InterpretedMessage)
+        finally:    
+            self.SqlObject.CloseConnection()

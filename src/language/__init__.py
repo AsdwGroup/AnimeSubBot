@@ -19,16 +19,18 @@ class Language(object):
     """
     
     def __init__(self,
-                 DefaultLanguages,):
+                 DefaultLanguages = ["en_US"],):
         """
         Variables:
             DefaultLanguages              ``list``
                 the default languages of the bot.
         """
+
         self.RLock = multiprocessing.RLock() 
         self.DefaultLanguages = DefaultLanguages
         self.Localedir = "language"
         self.Domain = "Telegram"
+
         
     def CreateTranslationObject(self,
                                 Languages = None,
@@ -45,11 +47,13 @@ class Language(object):
         # if Language has been given 
         if isinstance(Languages, str):
             Languages = [Languages]
+        elif isinstance(Languages, list):
+            pass
         elif Languages is None:
             Languages = self.DefaultLanguages
         else:
             raise TypeError
-        
+
         with self.RLock:
             LanguageObject = gettext.translation(
                                     domain = self.Domain,

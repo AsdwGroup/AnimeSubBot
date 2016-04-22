@@ -1,4 +1,4 @@
-rem @echo off
+@echo off
 
 goto comment
 This file signals the pygettext python module to get all the strings for translation and the docstrings.

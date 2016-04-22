@@ -239,6 +239,12 @@ class Logger(logging.Logger):
                 ConsoleHandler = CursesHandler(CursesObject)
                 ConsoleHandler.setFormatter(Formatter)
                 self.addHandler(ConsoleHandler)
+                
+    def CloseHandlers(self):
+        handlers = self.handlers[:]
+        for handler in handlers:
+            handler.close()
+            self.removeHandler(handler)            
 
     def debug(self, msg, *args, **kwargs):
         """
@@ -413,8 +419,7 @@ class LoggingProcessServer(multiprocessing.Process):
                 LoggingLevel = "debug",
                 CursesObject = None, 
                 LoggingQueue = None,
-                ShutdownEvent = None,
-                **OptionalObjects):
+                ShutdownEvent = None,):
         
         """
         An init function in which the logging data and multiprocess access is initialied.
@@ -517,10 +522,7 @@ class LoggingProcessServer(multiprocessing.Process):
             "LoggingLevel": LoggingLevel,
             "CursesObject": CursesObject,
         }
-        
-        if OptionalObjects:
-            self.LanguageObject = OptionalObjects["LanguageObject"]
-            self._ = self.LanguageObject.CreateTranslationObject()
+
     
     def AnalyseLog(self, MessageOfLog):
         AllowedTypes = (
@@ -531,8 +533,12 @@ class LoggingProcessServer(multiprocessing.Process):
                         "LOG"
                         )
         
-        TypeOfLog = LoggingObject["Type"].upper()
-        MessageOfLog = LoggingObject["Message"]
+        TypeOfLog = MessageOfLog["Type"].upper()
+        if TypeOfLog not in AllowedTypes:
+            raise TypeError("MessageOfLog {TypeOfLog} was not in"
+                              " AllowedTypes").format(
+                                                TypeOfLog = TypeOfLog)
+        MessageOfLog = MessageOfLog["Message"]
         
         if TypeOfLog in AllowedTypes:
             if TypeOfLog == "DEBUG":
@@ -545,11 +551,7 @@ class LoggingProcessServer(multiprocessing.Process):
                 self.Logger.error(MessageOfLog)
             elif TypeOfLog == "LOG":
                 self.Logger.log(MessageOfLog)
-        else:
-            raise TypeError(_("MessageOfLog {TypeOfLog} was not in"
-                              " AllowedTypes").format(
-                                                TypeOfLog = TypeOfLog)
-                            )
+                            
         
     def run(self):
         """
@@ -697,15 +699,14 @@ class LoggingProcessSender(object):
         self.LoggingServer.start()
     
     def GetProcessenderW(self):
-        SenderW = LoggingProcessSerderW(
-                                        
-                                        )
+        SenderW = LoggingProcessSerderW(self.LoggingQueue)
+        return SenderW
     
-    def _GetSubProcessPid_(self):
+    def join(self):
         """
         This methode will return the subprocess object.
         """
-        return self.LoggingServer
+        self.LoggingServer.join()
     
     def _InsetIntoQueue_(self, version, msg):
         """

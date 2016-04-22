@@ -17,6 +17,7 @@ Top level files:
    Files/clogging.rst
    Files/telegram.rst
    Files/worker.rst
+   Files/Installer.rst
 
 Sub modules:
    

@@ -79,9 +79,9 @@ class Api(object):
 
         # Create the connection to the database.
         self.DatabaseConnection = None
-        self.DatabaseConnection = self.CreateConnection()
+        self.DatabaseConnection = self._CreateConnection_()
 
-    def CreateConnection(self):
+    def _CreateConnection_(self):
         """
         This method creates the mysql connection database.
         
@@ -98,7 +98,7 @@ class Api(object):
                 "password": self.Password,
                 "host": self.Host,
                 "port": 3306,
-                # "use_pure":False,
+                "use_pure":True,
                 "raise_on_warnings": True,
             }
             
@@ -170,7 +170,7 @@ class Api(object):
         """
         try:
             self.DatabaseConnection.close()
-        except mysql.connection.Error as err:
+        except mysql.connector.Error as err:
             self.LoggingObject.error(
                 self._("The database connector returned following error: "
                        "{Error}").format(Error=err) + " " + self._(
@@ -865,7 +865,7 @@ class Api(object):
             for Key, Value in Where:
                 Query.append("{Value}=%({Key})s".format(
                     Value=Value,
-                    Key=Value
+                    Key=Key
                 )
                 )
 
@@ -901,7 +901,7 @@ class Api(object):
         """
         try:
             self.DatabaseConnection.commit()
-        except mysql.DatabaseConnection.Error as Error:
+        except mysql.connector.Error as Error:
             self.LoggingObject.error(
                 self._("The database connector returned following error:"
                        " {Error}").format(Error=Error))
@@ -1163,14 +1163,16 @@ class SqlDatabaseInstaller(object):
                  User,
                  Password,
                  DatabaseName,
+                 Language,
+                 Logging,
                  Host="127.0.0.1",
                  Port="3306",
-                 ReconnectTimer = 3000,
-                 **OptionalObjects):
+                 ReconnectTimer = 3000
+                 ):
                  
         """
-        This API enables an easy DatabaseConnection to the mysql driver 
-        and to the server with the database .
+        This is the database installer class that will install the
+        database if needed.
     
         VARIABLES:
             User                     ``string``                             
@@ -1179,34 +1181,51 @@ class SqlDatabaseInstaller(object):
                 contains the database user password
             DatabaseName             ``string``                             
                 contains the database name
+            NewDatabase                   ``boolean``
+                set's if a new database shall be created or just adding
+                the tables.
             Host                     ``string``
                 contains the database host ip
             Port                     ``string``
                 contains the database port 
-            OptionalObjects          ``dictionary``
-                contains optional objects like the language object, 
-                the logging object or else
-        """             
-        self.SqlObject = Api(
-                User = User,
-                Password = Password,
-                DatabaseName = None, # This is only now
-                Host = Host,
-                Port = Port,
-                ReconnectTimer = ReconnectTimer,
-                OptionalObjects = OptionalObjects
-            )
-            
-        self.Cursor = self.SqlObject.CreateCursor()
-        self.DatabaseName = self.DatabaseName
-        try:
-            self._CreateMainDatabase_()
-        except:
-            self.SqlObject.Rollback()
-            raise
+        """
+        self.User = User
+        self.Password = Password
+        self.DatabaseName = DatabaseName
+        self.Host = Host
+        self.Port = Port
+        self.ReconnectTimer = ReconnectTimer
+        self.DatabaseName = self.DatabaseName         
+        self.Language = Language
+        self.Logger = Logging   
+        
+    def _NewSqlObject_(self, DatabaseName = None):
+
+        ApiObject = Api(
+            User = self.User,
+            Password = self.Password,
+            LanguageObject = self.Language,
+            LoggingObject = self.Logger,
+            DatabaseName = DatabaseName,
+            Host = self.Host,
+            Port = self.Port,
+            ReconnectTimer = self.ReconnectTimer,
+        )
+        
+        Cursor = ApiObject.CreateCursor()
+        return ApiObject, Cursor 
     
-    def Install(self):
-        self._CreateDatabase_(self.Cursor, self.DatabaseName)
+    def Install(self, InstallDB = False):
+        if InstallDB is True:
+            self.SqlObject, self.Cursor = self._NewSqlObject_(None)
+            self._CreateDatabase_(self.Cursor, self.DatabaseName)
+            self.SqlObject.CloseConnection()
+                
+        # rebuild sqlobject with safe connection
+        self.SqlObject, self.Cursor = self._NewSqlObject_(self.DatabaseName)
+        self._CreateMainTables_()
+        self.SqlObject.CloseConnection()
+        
     def _CreateDatabase_(self, Cursor, DatabaseName):
         """
         This method will create a database. Use with caution!
@@ -1218,14 +1237,15 @@ class SqlDatabaseInstaller(object):
                 contains the database name that has to be created
         """
         Query = ("CREATE DATABASE IF NOT EXISTS {DatabaseName} DEFAULT "
-                "CHARACTER SET 'utf8'".format(DatabaseName=DatabaseName))
+                "CHARACTER SET 'utf8'".format(DatabaseName=DatabaseName)
+                )
 
         self.ExecuteTrueQuery(
             Cursor,
             Query
         )
     
-    def _CreateMainDatabase_(self):
+    def _CreateMainTables_(self):
         """
         This method will create all the default tables and data.
         
@@ -1246,10 +1266,10 @@ class SqlDatabaseInstaller(object):
             ("Last_Name", "TEXT DEFAULT NULL"),
             ("Is_Admin", "Boolean DEFAULT FALSE"),
             ("UNIQUE", "External_Id"),  
-            ("PRIMARY KEY", "Internal_Id")
+            ("PRIMARY KEY", "Internal_Id"),
         )
 
-        self.CreateTable(self.Cursor, TableName, TableData, )
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
              
         # SessionHandling - saves the last send command
         TableName = "Session_Table"
@@ -1259,10 +1279,10 @@ class SqlDatabaseInstaller(object):
             ("Command", "Varchar(256) DEFAULT NULL"),
             ("Last_Used_Id", "Integer DEFAULT NULL"),
             ("UNIQUE", "Command_By_User"),
-            ("PRIMARY KEY", "Session_Id"),
+            ("PRIMARY KEY", "Id"),
         )
         
-        self.CreateTable(self.Cursor, TableName, TableData, )
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
 
         # Settings
         TableName = "Setting_Table"
@@ -1276,7 +1296,7 @@ class SqlDatabaseInstaller(object):
             ("PRIMARY KEY", "Setting_Id")
         )
 
-        self.CreateTable(self.Cursor, TableName, TableData, )
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
 
         # UserSetSetting
         TableName = "User_Setting_Table"
@@ -1289,25 +1309,37 @@ class SqlDatabaseInstaller(object):
             ("User_Integer", "Integer DEFAULT NULL"),
             ("User_Boolean", "Boolean DEFAULT NULL"),
             ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Setting_Id)"),
-            ("FOREIGN KEY", "Set_By_User", "User_Table(Internal_User_Id)"),
+            ("FOREIGN KEY", "Set_By_User", "User_Table(Internal_Id)"),
             ("PRIMARY KEY", "User_Setting_Id"),
         ) 
         
-        self.CreateTable(self.Cursor, TableName, TableData, )
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
         
         # ListOfAnime - Masterlist
         TableName = "Aime_Table"
         TableData = (
-            ("Id_Anime", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
             ("Anime_Name", "Varchar(256)"),
-            ("Main_Url", "Varchar(2,083)"),
-            ("Internal_Channel_Url", "Varchar(2,083)"),
+            ("Main_Url", "Varchar(2083)"),
+            ("Internal_Channel_Url", "Varchar(2083)"),
             ("Date_of_Air", "Varchar(256)"),
-            ("PRIMARY KEY", "Id_Anime"),
+            ("PRIMARY KEY", "Id"),
         )
 
-        self.CreateTable(self.Cursor, TableName, TableData, )
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+        # ListOfMessages
+        TableName = "Message_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Message", "Text"),
+            ("PRIMARY KEY", "Id"),
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
         
         # Second all the inserts
         
@@ -1316,12 +1348,15 @@ class SqlDatabaseInstaller(object):
             "Setting_Name": "Language",
             "Default_String": "en_US"
         }
-        self.InsertEntry(self.Cursor, "Setting_Table", Columns)
+        self.SqlObject.InsertEntry(self.Cursor, "Setting_Table", Columns)
 
         # commit all the changes
         self.SqlObject.Commit()
        
-class MasterApi(object):
+class DistributorApi(object):
+    """
+    This class is a distributor for the database connection classes.
+    """
     def __init__(self,                 
                  User,
                  Password,
@@ -1331,6 +1366,7 @@ class MasterApi(object):
                  Host="127.0.0.1",
                  Port="3306",
                  ReconnectTimer = 3000,):
+        
         self.User = User
         self.Password = Password
         self.DatabaseName = DatabaseName
@@ -1361,5 +1397,3 @@ class MasterApi(object):
                              )
         return DatabaseObject     
              
-if __name__ == '__main__':
-    raise NotImplementedError

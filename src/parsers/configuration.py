@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3.4
 # -*- coding: utf-8 -*-
 """
 This module defines and configures the custom configuration parser.
@@ -16,7 +16,7 @@ import Crypto.Cipher.AES
 import Crypto.Hash.SHA256
 import Crypto.Random
 
-class ConfigurationParser(configparser.RawConfigParser):
+class DefaultConfigurationParser(configparser.RawConfigParser):
     """
     This class is an extension of the configparser.RawConfigParser
     class set by the standard python library, it add an ability to 
@@ -33,10 +33,9 @@ class ConfigurationParser(configparser.RawConfigParser):
     Link to the documentation:
         https://docs.python.org/3/library/configparser.html
     """
-
+    
     def __init__(self,
                  FileName="config.ini",
-                 ConfigFileInit = True, 
                  **Configuration):
         """
         This init method extends the original one with multiple 
@@ -45,12 +44,10 @@ class ConfigurationParser(configparser.RawConfigParser):
         Variables:
             FileName                      ``string``
                 contains the name of the configuration file
-                
-            ConfigFileInit                ``string``
-                if the configuration file shall be created by object 
-                creation.
-                
-
+            
+            **Configuration               ``diretory``
+                contains all the options needed for the parent
+                class
         """
 
         # Custom configurable filename
@@ -59,8 +56,8 @@ class ConfigurationParser(configparser.RawConfigParser):
         self.FileName = os.path.join(self.FilePath, FileName)
         self.ResetConfigurationFile = False
         self.Encoding = "utf-8"
-        self.ConfigFileInit = ConfigFileInit
-        # variables needed for the configparser
+        
+        # default variables needed for the configparser
         self.Default = None
         self.DictType = collections.OrderedDict
         self.AllowNoValue = False
@@ -111,7 +108,7 @@ class ConfigurationParser(configparser.RawConfigParser):
 
         # This method initializes the superclass with all the possible
         # parameters.
-        super(ConfigurationParser, self).__init__(
+        super().__init__(
             defaults=self.Default,
             dict_type=self.DictType,
             allow_no_value=self.AllowNoValue,
@@ -127,17 +124,63 @@ class ConfigurationParser(configparser.RawConfigParser):
         # This commands sets the parser sensitive to upper- and lowercase.
         self.optionxform = lambda option: option
 
-        if self.ConfigFileInit is True:
-            # check if configfile exists
-            if os.path.isfile(self.FileName) is not True:
-                self.WriteConfigurationFile()
+        
+    def CheckIfExists(self):
+        # check if configfile exists
+        if os.path.isfile(self.FileName) is True:
+            return True
+        else:
+            return False  
     
-            elif self.ResetConfigurationFile is True:
-                self.WriteConfigurationFile()
+    def ReadConfigurationFile(self):
+        raise NotImplementedError
     
-            # Read the configuration from the init
-            self.ReadConfigurationFile()
-
+    def WriteConfigurationFile(self):
+        raise NotImplementedError
+    
+    def ReturnClean(self):
+        """
+        This method will return a clean version of the configuration 
+        parser, so that the class is pickleable again.
+        """
+        config = configparser.RawConfigParser(
+                                           defaults=self.Default,
+            dict_type=self.DictType,
+            allow_no_value=self.AllowNoValue,
+            delimiters=self.Delimiters,
+            comment_prefixes=self.CommentPrefixes,
+            inline_comment_prefixes=self.InlineCommentPrefixes,
+            strict=self.Strict,
+            empty_lines_in_values=self.EmtyLineInValues,
+            default_section=self.DefaultSelection,
+            interpolation=self.Interpolation)
+        
+        dictionary = {}
+        for section in self.sections():
+            config.add_section(section)
+            for option in self.options(section):
+                config.set(section,option, self.get(section, option))
+        
+        return config
+    
+class ConfigurationParser(DefaultConfigurationParser):
+    """
+    This class is an extension of the configparser.RawConfigParser
+    class set by the standard python library, it add an ability to 
+    automatically read the configuration file on object creation as
+    well as some default configuration.
+    
+    From the python documentation:
+        This module provides the ConfigParser class which implements a 
+        basic configuration language which provides a structure similar 
+        to what’s found in Microsoft Windows INI files. You can use this
+        to write Python programs which can be customized by end users 
+        easily.
+    
+    Link to the documentation:
+        https://docs.python.org/3/library/configparser.html
+    """   
+        
     def WriteConfigurationFile(self):
         """
         A method to write the default configuration to the .ini file.
@@ -155,29 +198,28 @@ class ConfigurationParser(configparser.RawConfigParser):
             # until to state a request the telegram server.
             # It's in milliseconds
             ("RequestTimer", 1000),
-            ("DefaultLanguage", "en_US"),
+            ("DefaultLanguage", "en_US,"),
             ("MaxWorker", 5),
         ))
 
-        self["MySQLConnectionParameter"] = collections.OrderedDict(
-            (
-                ("ReconnectionTimer", 3000),
-                ("DatabaseName", "AnimeSubBotDatabase"),
-                ("DatabaseHost", "127.0.0.1"),
-                ("DatabasePort", 3306),
-            )
-        )
+        self["MySQL"] = collections.OrderedDict((
+            ("ReconnectionTimer", 3000),
+            ("DatabaseName", ""), # AnimeSubBotDatabase
+            ("DatabaseHost", "127.0.0.1"),
+            ("DatabasePort", 3306),
+            ))
 
         self["Logging"] = collections.OrderedDict((
             ("LogToConsole", True),
             ("LoggingFileName", "log.txt"),
+            ("MaxLogs", 20),
             ("LoggingFormat", "[%(asctime)s] - [%(levelname)s] - %(message)s"),
             ("DateFormat", "%d.%m.%Y %H:%M:%S")
         ))
         
         if not os.path.isdir(self.FilePath):
             os.mkdir(self.FilePath)
-        
+
         # Writes the default configuration in to the correct file
         with open(self.FileName, "w") as configfile:
             self.write(configfile)
@@ -213,9 +255,9 @@ class ConfigurationParser(configparser.RawConfigParser):
                         ParserObject[Section][Configuration]
                         )
 
-class SecureConfigurationParser(ConfigurationParser):
+class SecureConfigurationParser(DefaultConfigurationParser):
     """
-    This class is an extension of the custom ConfigurationParser
+    This class is an extension of the custom DefaultConfigurationParser
     class it adds an AES-type encryption to the configuration for a bit 
     more security. It forces the .psi extention that stands for 
     pickled secured ini.
@@ -242,30 +284,19 @@ class SecureConfigurationParser(ConfigurationParser):
                 contains the option to reconfigure the default 
                 super values.
         """
-
-        
-        # variables needed for the encryption  
-        self.InternalKey = InternalKey
-        SHA256Enc = Crypto.Hash.SHA256.new()
-        SHA256Enc.update(InternalKey.encode("utf-8"))
-        self.HashKey = SHA256Enc.digest()
+        self.HashKey = SecureConfigurationParser.HashString(InternalKey)
         self.BlockSize = Crypto.Cipher.AES.block_size
-        
+        self.Padding = "|"
+        self.Mode = Crypto.Cipher.AES.MODE_CBC
         # force the .psi extention
         self.FileName = FileName
         FileInfo = os.path.splitext(FileName)
         if FileInfo[1] != ".psi":
             self.FileName = "{}{}".format(FileInfo[0], ".psi")
-            
-        self.Padding = "|"
-
-        self.Mode = Crypto.Cipher.AES.MODE_CBC
 
         super().__init__(FileName = FileName,
-                         ConfigFileInit = False,
                          Configuration = Configuration
-                         )
-      
+                         )              
     
     def GetNewIV(self):
         """
@@ -297,13 +328,17 @@ class SecureConfigurationParser(ConfigurationParser):
         """
         if not os.path.isdir(self.FilePath):
             os.mkdir(self.FilePath)
-        
+            
         Configuration = {"TelegramToken": TelegramToken,
-                         "DatabaseUser": DatabaseUser,
-                         "DatabasePassword": DatabasePassword
-                         }
-        Configuration = self.StringToBase64(json.dumps(Configuration))
-        Components = self._Encode_(self.HashKey, Configuration)
+                            "DatabaseUser": DatabaseUser,
+                            "DatabasePassword": DatabasePassword
+                        } 
+            
+        self["Security"] = Configuration
+
+        jsonDump = json.dumps({"Security": Configuration})
+        Configuration = self.StringToBase64(jsonDump)
+        Components = self._Encrypt_(self.HashKey, Configuration)
         self._SaveToConfigFile_(Components)
     
     def ReadConfigurationFile(self,):
@@ -315,12 +350,30 @@ class SecureConfigurationParser(ConfigurationParser):
         Variables:
             \-
         """
-        Components = self._GetFromConfigFile_()
-        Configuration = self._Decode_(self.HashKey, Components[0], Components[1])
-        Text = self.Base64ToString(Configuration)
-        self["Security"] = json.loads(Text)
-        
-    def StringToBase64(self, String, Encoding = "utf-8"):
+        if self.CheckIfExists() is True:
+            Components = self._GetFromConfigFile_()
+            Configuration = self._Decrypt_(self.HashKey, 
+                                           Components[0], 
+                                           Components[1]
+                                           )
+            Text = self.Base64ToString(Configuration)
+            Directory = json.loads(Text)
+            for Entry in Directory.keys():
+                self[Entry] = Directory[Entry]
+            
+            return True
+        else:
+            return False
+    
+    @staticmethod
+    def HashString(String):
+        # variables needed for the encryption  
+        SHA256Enc = Crypto.Hash.SHA256.new()
+        SHA256Enc.update(String.encode("utf-8"))
+        return SHA256Enc.digest()
+    
+    @staticmethod    
+    def StringToBase64(String, Encoding = "utf-8"):
         """
         Will encode a string to base64 configuration.
         
@@ -328,13 +381,14 @@ class SecureConfigurationParser(ConfigurationParser):
         """
         return base64.b64encode(String.encode(Encoding))
     
-    def Base64ToString(self, String, Encoding="utf-8"):
+    @staticmethod
+    def Base64ToString(String, Encoding="utf-8"):
         """
         Will decode a string from base64 configuration.
         """
         return base64.b64decode(String).decode("utf-8")
           
-    def _Encode_(self, Key, String):
+    def _Encrypt_(self, Key, String):
         """
         Will encode a string with the given key to AES confuguration.
         
@@ -356,7 +410,7 @@ class SecureConfigurationParser(ConfigurationParser):
         
         return IV, Encryptor.encrypt(String)
     
-    def _Decode_(self, Key, IV, Ciphertext):
+    def _Decrypt_(self, Key, IV, Ciphertext):
         """
         Will decode a text encryped with the AES encryption.
         
@@ -369,10 +423,16 @@ class SecureConfigurationParser(ConfigurationParser):
         """
         Decryptor = Crypto.Cipher.AES.new(Key, self.Mode, IV=IV)
         Text = Decryptor.decrypt(Ciphertext)
-        Text = re.sub(r"(\{Padding}*)$".format(Padding = self.Padding),
-                      "", Text.decode("utf-8")).encode("utf-8")
-        
-        return Text
+        # This regex will search for all padding instances that have 
+        # between 1-15 times at the end of the text.
+        Text = re.sub(r"(\{Padding}{Limit})$".format(
+                                            Padding = self.Padding,
+                                            Limit = "{1,15}"
+                                            ),
+                      "", Text.decode("utf-8")
+                      )
+
+        return Text.encode("utf-8")
         
     def _SaveToConfigFile_(self, Object):
         """
@@ -383,7 +443,10 @@ class SecureConfigurationParser(ConfigurationParser):
                 this should be a picklable object
         """
         with open(self.FileName, "wb") as File:
-            pickle.dump(Object, File, protocol = pickle.HIGHEST_PROTOCOL)
+            pickle.dump(Object, 
+                        File, 
+                        protocol = pickle.DEFAULT_PROTOCOL
+                        )
     
     def _GetFromConfigFile_(self):
         """

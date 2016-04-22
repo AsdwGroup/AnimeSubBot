@@ -11,8 +11,8 @@ will be changed as soon as multipossessing is implemented.
 # standard modules import 
 import os
 import sys
-import getpass
 import time
+import getpass
 import platform
 import multiprocessing
 # if only windows is supported else use the curses module on linux (-.-)
@@ -27,6 +27,7 @@ except ImportError:
 
 # personal imports
 import sql
+import installer
 import gobjects
 import language
 import clogging
@@ -42,6 +43,52 @@ def RestartProgram():
     """
     python = sys.executable
     os.execl(python, python, * sys.argv)
+
+def Install(Configuration, 
+            SConfiguration, 
+            MasterLanguage, 
+            MasterLogger):
+    import installer
+    Install = installer.Installer(
+                                  Configuration = Configuration,
+                                  SConfiguration = SConfiguration,
+                                  Language = MasterLanguage, 
+                                  Logging = MasterLogger,
+                                  )
+    Install.Install()
+
+def TestSql(Configuration, MasterLogger, MasterLanguage):
+    
+    SqlObject = None
+
+    NoConnection = True
+    NrTry = 1
+    while NrTry <= 3:
+
+        SqlObject = sql.Api(
+            User = Configuration["Security"]["DatabaseUser"],
+            Password = Configuration["Security"]["DatabasePassword"],
+            DatabaseName = Configuration["MySQL"]["DatabaseName"],
+            Host=Configuration["MySQL"]["DatabaseHost"],
+            Port=Configuration["MySQL"]["DatabasePort"],
+            ReconnectTimer=int(Configuration["MySQL"]
+                               ["ReconnectionTimer"]),
+            LoggingObject = MasterLogger,
+            LanguageObject = MasterLanguage
+        )
+        if SqlObject.DatabaseConnection is False:
+            NrTry += 1
+        else:
+            break
+        
+    if NrTry == 3:
+        MasterLogger.info(
+             _("{AppName} has been stopped, because you didn't input the"
+                " correct user name"
+                " of password.").format(
+                AppName=gobjects.__AppName__))
+        raise SystemExit
+    return True
 
 def Main():
     """
@@ -84,40 +131,80 @@ def Main():
     # it defaults to true and will be set to false in the end.
     ShutdownEventObject = multiprocessing.Event()
     ShutdownEventObject.set()
-    
-    # This variable holds all the processes
-    Processes = []
-
     try:
+        # initialising the first logger and the language master object
+        # this object will be recreated later on
+        MasterLogger = clogging.Logger()
+        MasterLanguage = language.Language()
+
+        Language = MasterLanguage.CreateTranslationObject()
+
+        _ = Language.gettext
 
         # Create the configuration class and read the configuration class.
         Configuration = parsers.configuration.ConfigurationParser()
+        SConfiguration = parsers.configuration.SecureConfigurationParser(INTERNAL_KEY)
+        # check if default files exist if not install them
+        if ((Configuration.CheckIfExists() is False) or 
+            (SConfiguration.CheckIfExists() is False)):
+            
+            import installer
+            installer.Installer(Configuration,
+                SConfiguration, 
+                MasterLanguage, 
+                MasterLogger).Install("A")
+            
+        else:
+            Configuration.ReadConfigurationFile()         
+            SConfiguration.ReadConfigurationFile()    
+            Configuration.AddSecureConfigurationParser(SConfiguration)
+        # deleting the object so that it will be garbage collected 
+        del SConfiguration
+        Configuration = Configuration.ReturnClean()
         
         # Create the language processor
-        LanguageMasterObject = language.Language().CreateTranslationObject(
+        MasterLanguage = language.Language()
+        Language = MasterLanguage.CreateTranslationObject(
             Configuration["Telegram"]["DefaultLanguage"].split(","))
 
-        # This is the language objects only value
-        _ = LanguageMasterObject.gettext
+        # This is the language object that will call the translation 
+        # function.
+        _ = Language.gettext
 
         # init parser
 
         Parser = parsers.commandline.CustomParser(ConfigurationObject=Configuration,
-                                            LanguageObject=LanguageMasterObject
+                                            LanguageObject=MasterLanguage
                                             )
         Parser.RunParser()
         ParserArguments = Parser.GetArguments()
         
+        if ParserArguments.Installer is True:
+            # checking the installation
+            # reseting the configurations
+            import installer
+            Configuration = parsers.configuration.ConfigurationParser()
+            SConfiguration = parsers.configuration.SecureConfigurationParser(INTERNAL_KEY)
+            installer.Installer(Configuration, 
+                    SConfiguration,
+                    MasterLanguage,
+                    MasterLogger).Install()
+            # deleting the object so that it will be garbage collected 
+            del SConfiguration
+            Configuration = Configuration.ReturnClean()
         
         # Initialise the rest of the objects.
+        # first the multiprocess logger 
+        MasterLogger.CloseHandlers()
+
         MasterLogger = clogging.LoggingProcessSender(
-            LogToConsole=ParserArguments.PrintToConsole,
-            FileName=Configuration["Logging"]["LoggingFileName"],
-            MaxLogs=Configuration["Logging"]["MaxLogs"],
-            LoggingFormat=Configuration["Logging"]["LoggingFormat"],
-            Dateformat=Configuration["Logging"]["DateFormat"],
-            LoggingLevel="debug",
-            CursesObject=CursesObject,
+            LogToConsole = ParserArguments.PrintToConsole,
+            FileName = Configuration["Logging"]["LoggingFileName"],
+            MaxLogs = Configuration["Logging"]["MaxLogs"],
+            LoggingFormat = Configuration["Logging"]["LoggingFormat"],
+            Dateformat = Configuration["Logging"]["DateFormat"],
+            LoggingLevel = "debug",
+            CursesObject = CursesObject,
             ShutdownEvent = ShutdownEventObject
         )
 
@@ -125,114 +212,26 @@ def Main():
             AppName=gobjects.__AppName__
         ))
 
-        if ParserArguments.ApiToken == "":
-            MasterLogger.critical(_("No telegram token has been added to the"
-                                    " system!")
-                                  )
-            raise SystemExit
+        # test if there is a MySql connection
+        TestSql(Configuration, MasterLogger, MasterLanguage)
         
-        TestTelegramObject = telegram.TelegramApi(
-            ApiToken=ParserArguments.ApiToken,
-            RequestTimer=ParserArguments.Time,
-            LoggingObject=MasterLogger,
-            LanguageObject=LanguageMasterObject,
-            ExitOnError=False
-        )
-
-        BotName = TelegramObject.GetBotName()
-
-        SqlObject = None
-
-        NoConnection = True
-        NrTry = 1
-
-        while NoConnection and NrTry <= 3:
-            # If no database user or password have been sent, get them
-            #  from the user.
-            # (This is safer than other options.)
-            if ParserArguments.DatabaseUser == "":
-                ParserArguments.DatabaseUser = input(_("User:") + " ")
-            if ParserArguments.DatabasePassword == "":
-                ParserArguments.DatabasePassword = getpass.getpass(
-                    _("Password:") + " "
-                )
-
-            SqlObject = sql.sql_api.Api(
-                User=ParserArguments.DatabaseUser,
-                Password=ParserArguments.DatabasePassword,
-                DatabaseName=ParserArguments.DatabaseName,
-                Host=Configuration["MySQLConnectionParameter"]["DatabaseHost"],
-                Port=Configuration["MySQLConnectionParameter"]["DatabasePort"],
-                ReconnectTimer=int(Configuration["MySQLConnectionParameter"]
-                    ["ReconnectionTimer"]),
-                LoggingObject=MasterLogger,
-                LanguageObject=LanguageMasterObject
-            )
-
-            if SqlObject.DatabaseConnection is False:
-                ParserArguments.DatabaseUser = ""
-                ParserArguments.DatabasePassword = ""
-
-                # If the password has been entered more than tree times
-                # the system will shut down.
-                TryAgain = ""
-                if NrTry < 3:
-                    TryAgain = _("try again")
-                else:
-                    TryAgain = _("too bad")
-
-                MasterLogger.warning(_("You have used {NrTry} of 3 times:"
-                                       ).format(NrTry=str(NrTry)) +
-                                     " " + TryAgain, )
-                NrTry += 1
-            else:
-                NoConnection = False
-
-        if NrTry == 3:
-            MasterLogger.info(
-                _("{AppName} has been stopped, because you didn't input the"
-                  " correct user name"
-                  " of password.").format(
-                    AppName=gobjects.__AppName__))
-            raise SystemExit
-
-        # This will be used if the database will be installed.
-        if ParserArguments.InstallDatabaseStructure is True:
-            InstallDatabase = input(_("Are you sure you want to install the"
-                                      " database structure?") +
-                                    _("YES") + "/" + _("NO") + " [{Default}]"
-                                    ).format(
-                                        Default= _("YES"))
-            if InstallDatabase == "":
-                InstallDatabase = _("YES")
-
-            if InstallDatabase.lower() == _("YES").lower():
-                MasterLogger.info(_("{AppName} will now start to install "
-                                    "the database structure").format(
-                    AppName=gobjects.__AppName__)
-                )
-                SqlCursor = SqlObject.CreateCursor()
-                SqlObject.CreateMainDatabase(SqlCursor)
-                MasterLogger.info(_("The database has been installed, "
-                                    "the system is restarting.")
-                                  )
-                SqlObject.DestroyCursor(SqlCursor)
-                SqlObject.CloseConnection()
-                RestartProgram()
-            elif InstallDatabase.lower() in (_("NO").lower(), "n"):
-                MasterLogger.info(_("Database will not be installed "
-                                    "terminating process."))
-            raise SystemExit
-
-        ParserArguments.Time = ParserArguments.Time / 1000.0
-
+        # starting the Worker
+        MainWorker = worker.MainWorker(
+                 MaxWorker = Configuration["Telegram"]["MaxWorker"],
+                 ShutDownEvent = ShutdownEventObject,
+                 Configuration = Configuration,
+                 Logging = MasterLogger,
+                 Language = MasterLanguage,
+                 BotName = None)
+        
+        MainWorker.start()
+        
         # Initialise the main loop (it's a endless loop, it breaks when a
         # key is pressed.)
         MasterLogger.info(_("Exit loop by pressing <Esc>, <q> or <Space>"))
         MasterLogger.info(_("Getting updates from the telegram api."))
         # Add a comment number to the telegram request, so that the old
         # messages will be sorted out.
-
 
         while True:
             # check if a key is pressed by user and stop if pressed.
@@ -244,80 +243,32 @@ def Main():
                                     PressedKey == 32:
                         MasterLogger.info(_("A user shutdown was requested "
                                             "will now shutdown."))
-                        SqlObject.CloseConnection()
                         break
 
             # use curses
             else:
                 PressedKey = CursesObject.getch()
-                if PressedKey == 27 or PressedKey == 113 or PressedKey == 32:
+                if (PressedKey == 27 or PressedKey == 113 or  
+                        PressedKey == 32):
                     MasterLogger.info(_("A user shutdown was requested will "
                                         "now shutdown.")
                                       )
-                    SqlObject.CloseConnection()
                     break
                 else:
                     pass
-
-            # Process the requests
-            """
-            # Get the updates from the telegram serves.
-            if SqlObject.DetectConnection() is True:
-                # check if queue has something for us in it
-                CommentNumber = []
-                while True:
-                    if Queue.empty() is False:
-                        CommentNumber.append((Queue.get()))
-                    else:
-                        break
-
-                if len(CommentNumber)==1:
-                    CommentNumber = CommentNumber[0]
-                elif len(CommentNumber) > 1:
-                    CommentNumber = max(CommentNumber)
-                else:
-                    CommentNumber = None
-
-                Results = TelegramObject.GetUpdates(CommentNumber)
-
-                # Do
-                if Results is not None:
-                    for Message in Results["result"]:
-                        MessageProcessor = (
-                            messages.msg_processor.MessageProcessor(
-                                Message,
-                                LanguageObject=LanguageMasterObject,
-                                SqlObject=SqlObject,
-                                LoggingObject=MasterLogger,
-                                ConfigurationObject=Configuration,
-                                BotName=BotName
-                            )
-                        )
-
-                         # This command sends the message to the user
-                        InterpretedMessage = (
-                            MessageProcessor.InterpretMessage()
-                        )
-                        if InterpretedMessage != None:
-                            #print(TelegramObject.SendMessage(
-                            # InterpretedMessage))
-                            TelegramObject.SendMessage(InterpretedMessage)
-                        # Set the CommentNumber to a actual ChatId number,
-                        # so that the incoming list is always actual.
-                        # This number has to be 1 bigger than the oldest unit
-                        Queue.put(MessageProcessor.UpdateId + 1)
-
-            # Waits until the next loop should start.
-            # Sleep need a second to be parsed, so the given value is
-            # transformed
-            # from milliseconds to seconds.
-            if TelegramObject.RequestTimer == ParserArguments.Time:
-                time.sleep((ParserArguments.Time))
-            else:
-                time.sleep((TelegramObject.RequestTimer / 1000))
-        """
+        
+            time.sleep(0.5)
+            
+        MasterLogger.info(_("The system is shutting down, please be patient"
+                       " until all the workload has been cleared."))
+        
+            
+    except:
+        raise
     finally:
-
+        ShutdownEventObject.clear()
+        MainWorker.join()
+        MasterLogger.join()
         if platform.system() != "Windows":
             # clean after the curses module
             time.sleep(1)
@@ -333,5 +284,6 @@ def Main():
 
 
 if __name__ == "__main__":
+    INTERNAL_KEY =r"2#<&Sd8!upX.jm(n"
     multiprocessing.freeze_support()
     Main()

@@ -1,5 +1,5 @@
 from importlib.machinery import SourceFileLoader
-
+import pickle
 configuration = SourceFileLoader("configuration", "../src/parsers/configuration.py").load_module()
 
 
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     # this is a dummy key for testing
     a = configuration.SecureConfigurationParser(InternalKey = r"PuN?~kDr39s+FT'*YQ}-j}~]>ke#3VmE")
     a.WriteConfigurationFile(
-                             r"TelegramKey",
+                             r"TelegramKeasdfasdfsdfasdy",
                              "MySql@DatabaseUser24",
                              "Em#NYcGb7+GGXSg4\'F_c:a]cw'qzZ5fQe@X9f"
                              )
@@ -21,5 +21,9 @@ if __name__ == "__main__":
     a.ReadConfigurationFile()
     print(a["Security"]["TelegramToken"])
     b.AddSecureConfigurationParser(a)
-    print(b["Security"]["TelegramToken"])
+    with open("FileName", "wb") as File:
+        pickle.dump()
+    del a
+    print(a["Security"]["TelegramToken"])
+    print(b["Security"]["DatabasePassword"])
     print("Offline")
