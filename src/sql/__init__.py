@@ -63,9 +63,6 @@ class Api(object):
         self.Port = Port
         self.ReconnectTimer = (ReconnectTimer / 1000.0)
 
-        # This variable defines if the system should shutdown if no connection
-        # was created.
-        self._DieOnLostConnection = False
 
         # Predefining some attributes so that they later can be used for evil.
         
@@ -92,6 +89,7 @@ class Api(object):
         Variables:
             \-
         """
+
         try:
             config = {
                 "user": self.User,
@@ -104,7 +102,7 @@ class Api(object):
             
             if self.DatabaseName:
                 config['database'] = self.DatabaseName
-
+            
             return mysql.connector.connect(**config)
 
         except mysql.connector.Error as err:
@@ -147,9 +145,6 @@ class Api(object):
             else:
                 self.LoggingObject.error(err)
 
-            if self._DieOnLostConnection is True:
-                raise SystemExit
-
         except Exception:
             self.LoggingObject.critical(
                 self._(
@@ -158,8 +153,7 @@ class Api(object):
                 ).format(Error=sys.exc_info()[0])
             )
             self.CloseConnection()
-            if self._DieOnLostConnection is True:
-                raise SystemExit
+
 
     def CloseConnection(self, ):
         """
@@ -999,14 +993,14 @@ class SqlDatabaseInstaller(object):
         +------------------------------------------------------------+
         |Messages_Table                                              |
         +==================+===================+=====================+ 
-        |Messages_Id       |contains the Id    |Integer              | 
+        |Id                |contains the Id    |Integer              | 
         |                  |of the message     |(auto increment)     |
         +------------------+-------------------+---------------------+
         |Creation_Date     |contains the       |Timestamp            |
         |                  |creation date of   |(current timestamp)  |
         |                  |of the user entry  |                     |
         +------------------+-------------------+---------------------+
-        |JSON              |contains the json  |TEXT                 |
+        |Message           |contains the json  |TEXT                 |
         |                  |sting that was send|(Null)               |
         +------------------+-------------------+---------------------+
         |Set_By_User       |contains the Id    |Integer              | 
@@ -1016,7 +1010,7 @@ class SqlDatabaseInstaller(object):
         +------------------+-------------------+---------------------+ 
         |    FOREIGN KEY Set_By_User/User_Table(Internal_User_Id)    |     
         +------------------------------------------------------------+ 
-        |    PRIMARY KEY (Messages_Id)                               |
+        |    PRIMARY KEY (Id)                                        |
         +------------------------------------------------------------+        
         
         +------------------------------------------------------------+ 
@@ -1143,7 +1137,7 @@ class SqlDatabaseInstaller(object):
         |                  |our channel        |                     |
         +------------------+-------------------+---------------------+
         |Channel_Id        |contains the       |Integer              | 
-        |                  |internal Id of the |(auto increment)     |
+        |                  |internal Id of the |(Null)               |
         |                  |channel            |                     |
         +------------------+-------------------+---------------------+
         |Image_Name        |contains the MD5   |Binary(16)           |
@@ -1270,7 +1264,21 @@ class SqlDatabaseInstaller(object):
         )
 
         self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
-             
+        
+        # Group_Table
+        TableName = "Group_Table"
+        TableData = (
+            ("Internal_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("External_Id", "Integer DEFAULT NULL"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("User_Name", "TEXT DEFAULT NULL"),
+            ("UNIQUE", "External_Id"),  
+            ("PRIMARY KEY", "Internal_Id"),
+        )
+        
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+ 
+        
         # SessionHandling - saves the last send command
         TableName = "Session_Table"
         TableData = (
@@ -1278,59 +1286,15 @@ class SqlDatabaseInstaller(object):
             ("Command_By_User", "Integer DEFAULT NULL"),  # is the internal id of the user
             ("Command", "Varchar(256) DEFAULT NULL"),
             ("Last_Used_Id", "Integer DEFAULT NULL"),
+            ("FOREIGN KEY", "Command_By_User", "User_Table(Internal_Id)"),
             ("UNIQUE", "Command_By_User"),
             ("PRIMARY KEY", "Id"),
         )
         
         self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
-
-        # Settings
-        TableName = "Setting_Table"
-        TableData = (
-            ("Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Setting_Name", "Varchar(128) DEFAULT NULL"),
-            ("Default_String", "Varchar(256) DEFAULT NULL"),
-            ("Default_Integer", "Integer DEFAULT NULL"),
-            ("Default_Boolean", "Boolean DEFAULT NULL"),
-            ("PRIMARY KEY", "Setting_Id")
-        )
-
-        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
-
-        # UserSetSetting
-        TableName = "User_Setting_Table"
-        TableData = (
-            ("User_Setting_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Set_By_User", "Integer DEFAULT NULL"),  # This settings master entry in
-            ("Master_Setting_Id", "Integer DEFAULT NULL"),  # This setting has been set by
-            ("User_String", "Varchar(256) DEFAULT NULL"),
-            ("User_Integer", "Integer DEFAULT NULL"),
-            ("User_Boolean", "Boolean DEFAULT NULL"),
-            ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Setting_Id)"),
-            ("FOREIGN KEY", "Set_By_User", "User_Table(Internal_Id)"),
-            ("PRIMARY KEY", "User_Setting_Id"),
-        ) 
         
-        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
-        
-        # ListOfAnime - Masterlist
-        TableName = "Aime_Table"
-        TableData = (
-            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
-            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
-            ("Anime_Name", "Varchar(256)"),
-            ("Main_Url", "Varchar(2083)"),
-            ("Internal_Channel_Url", "Varchar(2083)"),
-            ("Date_of_Air", "Varchar(256)"),
-            ("PRIMARY KEY", "Id"),
-        )
-
-        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
-        
-        # ListOfMessages
-        TableName = "Message_Table"
+        # List of messages send to the bot
+        TableName = "Input_Messages_Table"
         TableData = (
             ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
@@ -1340,6 +1304,93 @@ class SqlDatabaseInstaller(object):
 
         self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
         
+        # List of messages send from the bot
+        TableName = "Output_Messages_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Message", "Text"),
+            ("PRIMARY KEY", "Id"),
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+        # Settings
+        TableName = "Setting_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Setting_Name", "Varchar(128) DEFAULT NULL"),
+            ("Default_String", "Varchar(256) DEFAULT NULL"),
+            ("Default_Integer", "Integer DEFAULT NULL"),
+            ("Default_Boolean", "Boolean DEFAULT NULL"),
+            ("PRIMARY KEY", "Id")
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+
+        # UserSetSetting
+        TableName = "User_Setting_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Set_By_User", "Integer DEFAULT NULL"),  # This settings master entry in
+            ("Master_Setting_Id", "Integer DEFAULT NULL"),  # This setting has been set by
+            ("User_String", "Varchar(256) DEFAULT NULL"),
+            ("User_Integer", "Integer DEFAULT NULL"),
+            ("User_Boolean", "Boolean DEFAULT NULL"),
+            ("FOREIGN KEY", "Master_Setting_Id", "Setting_Table(Id)"),
+            ("FOREIGN KEY", "Set_By_User", "User_Table(Internal_Id)"),
+            ("PRIMARY KEY", "Id"),
+        ) 
+        
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+        # UserTable
+        TableName = "Channel_Table"
+        TableData = (
+            ("Internal_Id", "Integer NOT NULL AUTO_INCREMENT"),
+            ("External_Id", "Integer DEFAULT NULL"),
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("True_Name", "TEXT DEFAULT NULL"),
+            ("Description", "TEXT DEFAULT NULL"),
+            ("UNIQUE", "External_Id"),  
+            ("PRIMARY KEY", "Internal_Id"),
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+        # ListOfAnime - Masterlist
+        TableName = "Anime_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Anime_Name", "Varchar(256) DEFAULT NULL"),
+            ("Airing_Year", "YEAR(4) DEFAULT NULL"),
+            ("MyAnimeList_Url", "Varchar(2083)"),
+            ("Telegram_Url", "Varchar(2083)"),
+            ("Channel_Id", "Integer DEFAULT NULL"),
+            ("Image_Name", "Binary(16) DEFAULT NULL"),
+            ("PRIMARY KEY", "Id"),
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
+        
+        
+        # ListOfAnime - Masterlist
+        TableName = "Episode_Table"
+        TableData = (
+            ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
+            ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("Name", "Varchar(256) DEFAULT NULL"),
+            ("Telegram_Url", "Varchar(2083)"),
+            ("Channel_Id", "Integer DEFAULT NULL"),
+            ("FOREIGN KEY", "Channel_Id", "Anime_Table(Id)"),
+            ("PRIMARY KEY", "Id"),
+        )
+
+        self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
         
         # Second all the inserts
         

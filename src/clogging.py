@@ -217,6 +217,8 @@ class Logger(logging.Logger):
             maxBytes = (20 * 1024),
             backupCount = MaxLogs
         )
+        # sets the file handler to log all the error above warning
+        FileHandler.setLevel(PossibleLoggingLevel["WARNING"])
 
         Formatter = logging.Formatter(
             fmt = LoggingFormat,
@@ -529,15 +531,16 @@ class LoggingProcessServer(multiprocessing.Process):
                         "DEBUG",
                         "INFO",
                         "WARNING",
+                        "CRITICAL",
                         "ERROR",
                         "LOG"
                         )
         
         TypeOfLog = MessageOfLog["Type"].upper()
         if TypeOfLog not in AllowedTypes:
-            raise TypeError("MessageOfLog {TypeOfLog} was not in"
+            raise TypeError(("MessageOfLog {TypeOfLog} was not in"
                               " AllowedTypes").format(
-                                                TypeOfLog = TypeOfLog)
+                                                TypeOfLog = TypeOfLog))
         MessageOfLog = MessageOfLog["Message"]
         
         if TypeOfLog in AllowedTypes:
@@ -547,6 +550,8 @@ class LoggingProcessServer(multiprocessing.Process):
                 self.Logger.info(MessageOfLog)
             elif TypeOfLog == "WARNING":
                 self.Logger.warning(MessageOfLog)
+            elif TypeOfLog == "CRITICAL":
+                self.Logger.critical(MessageOfLog)
             elif TypeOfLog == "ERROR":
                 self.Logger.error(MessageOfLog)
             elif TypeOfLog == "LOG":
@@ -572,24 +577,36 @@ class LoggingProcessServer(multiprocessing.Process):
             CursesObject = self.Data["CursesObject"], 
             ) 
             
-        while self.ShutdownEvent.is_set():
-            while not self.LoggingQueue.empty():
-                LoggingObject = None
-                try:
-                    # waste yourtime waiting
-                    LoggingObject = self.LoggingQueue.get(block = True,
-                                                          timeout = self.TimeToSleep
+        while not self.ShutdownEvent.is_set():
+
+            LoggingObject = None
+            try:
+                # waste yourtime waiting
+                LoggingObject = self.LoggingQueue.get(block = True,
+                                    timeout = self.TimeToSleep
                                                           )
-                except queue.Empty:
-                    pass
-                except:
-                    raise
+            except queue.Empty:
+                pass
+            except:
+                raise
                 
-                if LoggingObject is not None:
-                    self.AnalyseLog(LoggingObject)
-
+            if LoggingObject is not None:
+                self.AnalyseLog(LoggingObject)
+        
+        while self.LoggingQueue.qsize() > 0:
+            LoggingObject = None
+            try:
+                # waste yourtime waiting
+                LoggingObject = self.LoggingQueue.get(block = True,
+                                    timeout = self.TimeToSleep
+                                                          )
+            except queue.Empty:
+                pass
+            except:
+                raise
                 
-
+            if LoggingObject is not None:
+                self.AnalyseLog(LoggingObject)
                     
 class LoggingProcessSender(object):
     """

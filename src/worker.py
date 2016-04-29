@@ -1,9 +1,11 @@
 #!/usr/bin/env python3.4
 # -*- coding: utf-8 -*-
 import time
+import json
 import queue
-import gettext
+import datetime
 import multiprocessing
+import multiprocessing.managers
 
 import sql
 import gobjects
@@ -33,14 +35,13 @@ class MainWorker(multiprocessing.Process):
         '''
         super().__init__(name = "MainWorker")
         
-        self.OutputAPI = {
-                          "Object": None,
-                          "WorkerQueue": None,
-                          "ControlQueue": None,
-                          "ShutdownEvent": None,
-                          "WorkloadEvent":None,
-                          "ConnectionEvent":None
-                          }
+        self.MessageLogger = {
+                              "Object": None,
+                              "WorkerQueue": None,
+                              "ShutdownEvent": None,
+                              "WorkloadEvent":None,
+                              }
+        
         self.InputAPI = {
                          "Object": None,
                          "WorkerQueue": None,
@@ -49,6 +50,16 @@ class MainWorker(multiprocessing.Process):
                          "WorkloadEvent":None,
                          "ConnectionEvent":None
                          }
+        self.OutputAPI = {
+                          "Object": None,
+                          "WorkerQueue": None,
+                          "ControlQueue": None,
+                          "ShutdownEvent": None,
+                          "WorkloadEvent":None,
+                          "ConnectionEvent":None
+                          }
+        
+        self.ManagerObject = None
         
         self.MaxWorker = MaxWorker
         self.ShutdownEvent = ShutDownEvent
@@ -96,17 +107,32 @@ class MainWorker(multiprocessing.Process):
         self.WorkerCount -= 1
         
     def _ShutdownAll_(self):
+        """
+        This method will shutdown all the processes.
+        """
+        # tell all the process to shutdown
         self.InputAPI["ShutdownEvent"].set()
+        self.OutputAPI["ShutdownEvent"].set()
+        self.MessageLogger["ShutdownEvent"].set()
+        # wait until the input process finished it's work
         self.InputAPI["WorkloadEvent"].wait()
         self.InputAPI["Object"].join()
         while not self.InputAPI["WorkerQueue"].empty():
             time.sleep(0.1)
-        # signalising all the worker that the system is shutting down.            
+        # signal all the worker that the system is shutting down.            
         for Worker in self.WorkerList.keys():
             self._ShutdownWorker_(self.WorkerList[Worker])
-        self.OutputAPI["ShutdownEvent"].set()
+        
+        # shutdown the output process
         self.OutputAPI["WorkloadEvent"].set()
         self.OutputAPI["Object"].join()
+        
+        #shutdown the message server process
+        self.MessageLogger["WorkloadEvent"].set()
+        self.MessageLogger["Object"].join()
+        
+        # shuting down the manager 
+        self.ManagerObject.shutdown()
            
     def _StartWorker_(self,):
         
@@ -138,8 +164,17 @@ class MainWorker(multiprocessing.Process):
         self.WorkerCount += 1
                 
     def _InitialiseAPI_(self):
+        """
+        This method will initialise all the default processes.
         
-        self._ = self.LanguageObject.CreateTranslationObject()
+        Processes:
+            
+        """
+        self.ManagerObject = multiprocessing.managers.SyncManager()
+        self.ManagerObject.start()
+        # This is the message saving queue that will be used from the 
+        # beginning
+        self.MessageLogger["WorkerQueue"] = self.ManagerObject.Queue()        
         
         self.SqlDistributor = sql.DistributorApi(
                     User = self.Configuration["Security"]["DatabaseUser"],
@@ -152,14 +187,13 @@ class MainWorker(multiprocessing.Process):
                     ReconnectTimer = float(self.Configuration["MySQL"]["ReconnectionTimer"]),
                     )
         
+        self.ConnectionEvent = self.ManagerObject.Event()
         
-        
-        self.ConnectionEvent = multiprocessing.Event()
-        
-        self.InputAPI["WorkloadEvent"] = multiprocessing.Event()
-        self.InputAPI["ShutdownEvent"] = multiprocessing.Event()
-        self.InputAPI["WorkerQueue"] = multiprocessing.Queue()
-        self.InputAPI["ControlQueue"] = multiprocessing.Queue()
+        # starting the messages reciver 
+        self.InputAPI["WorkloadEvent"] = self.ManagerObject.Event()
+        self.InputAPI["ShutdownEvent"] = self.ManagerObject.Event()
+        self.InputAPI["WorkerQueue"] = self.ManagerObject.Queue()
+        self.InputAPI["ControlQueue"] = self.ManagerObject.Queue()
         
         self.InputAPI["Object"] = telegram.InputTelegramAPI(
                  ApiToken = self.Configuration["Security"]["TelegramToken"],
@@ -168,15 +202,16 @@ class MainWorker(multiprocessing.Process):
                  LanguageObject = self.LanguageObject,
                  ControllerQueue = self.InputAPI["ControlQueue"],
                  WorkloadQueue = self.InputAPI["WorkerQueue"],
+                 SendMessagesQueue = self.MessageLogger["WorkerQueue"],
                  ConnectionEvent = self.ConnectionEvent,
                  WorkloadDoneEvent = self.InputAPI["WorkloadEvent"],
                  ShutDownEvent = self.InputAPI["ShutdownEvent"],
                  )
-
-        self.OutputAPI["WorkloadEvent"] = multiprocessing.Event()
-        self.OutputAPI["ShutdownEvent"] = multiprocessing.Event()
-        self.OutputAPI["WorkerQueue"] = multiprocessing.Queue()
-        self.OutputAPI["ControlQueue"] = multiprocessing.Queue()
+        # starting the message sender
+        self.OutputAPI["WorkloadEvent"] = self.ManagerObject.Event()
+        self.OutputAPI["ShutdownEvent"] = self.ManagerObject.Event()
+        self.OutputAPI["WorkerQueue"] = self.ManagerObject.Queue()
+        self.OutputAPI["ControlQueue"] = self.ManagerObject.Queue()
         
         self.OutputAPI["Object"] = telegram.OutputTelegramAPI(
                  ApiToken = self.Configuration["Security"]["TelegramToken"],
@@ -184,18 +219,33 @@ class MainWorker(multiprocessing.Process):
                  LoggingObject = self.Logging,
                  LanguageObject = self.LanguageObject,
                  ControllerQueue = self.OutputAPI["ControlQueue"],
-                 WorkloadQueue = self.OutputAPI["WorkerQueue"],
+                 WorkloadQueue = self.OutputAPI["WorkerQueue"],                 
+                 SendMessagesQueue = self.MessageLogger["WorkerQueue"],
                  ConnectionEvent = self.ConnectionEvent,
                  WorkloadDoneEvent = self.OutputAPI["WorkloadEvent"],
                  ShutDownEvent = self.OutputAPI["ShutdownEvent"],
                  )
         
+        # starting the main message analysier process
+        self._StartWorker_()
+                
+        # starting the message saver        
+        self.MessageLogger["ShutdownEvent"] = self.ManagerObject.Event() 
+        self.MessageLogger["WorkloadEvent"] = self.ManagerObject.Event()
+
+        self.MessageLogger["Object"] = MessageToSql(
+                                    SqlObject = self.SqlDistributor,
+                                    WorkloadQueue = self.MessageLogger["WorkerQueue"], 
+                                    ShutdownEvent = self.MessageLogger["ShutdownEvent"],
+                                    WorkloadEvent = self.MessageLogger["WorkloadEvent"]
+                                    )  
+        self.MessageLogger["Object"].start()
+
     def run(self):
         self._InitialiseAPI_()
         LastLoad = None
-        self._StartWorker_()
         try:
-            while self.ShutdownEvent.is_set():
+            while not self.ShutdownEvent.is_set():
                 WorkloadAmount = self.InputAPI["WorkerQueue"].qsize()
                 Workload = (WorkloadAmount / 30)
                 LastLoad = Workload
@@ -260,21 +310,26 @@ class SubWorker(multiprocessing.Process):
         
         return Work
             
-    def _SendToQueue(self, Object):
+    def _SendToQueue_(self, Object):
         self.OutputQueue.put(Object)
     
     def run(self):
         self.SqlObject = self.SqlObject.New()
         try:
             while not self.ShutdownEvent.is_set():
-                Timeout = 0.05
+                Timeout = 1
 
                 Work = self._GetWorkFromQueue_(Timeout)
                 if Work is not None:
-                    MessageProcessor = messages.msg_processor(
+                    # create cursor object for the request
+                    Cursor = self.SqlObject.CreateCursor()
+                    
+                    MessageProcessor = messages.msg_processor.MessageProcessor(
                                     Work,
                                     LanguageObject = self.LanguageObject,
                                     SqlObject = self.SqlObject,
+                                    Cursor = Cursor,
+                                    LoggingObject = self.Logging,
                                     ConfigurationObject = self.Configuration
                                     )
                     InterpretedMessage = MessageProcessor.InterpretMessage()
@@ -282,8 +337,103 @@ class SubWorker(multiprocessing.Process):
                     if InterpretedMessage is not None:
                         if isinstance(InterpretedMessage, list):
                             for Message in InterpretedMessage:
-                                self._SendToQueue(Message)
+                                self._SendToQueue_(Message)
                         elif isinstance(InterpretedMessage, dict):
-                            self._SendToQueue(InterpretedMessage)
+                            self._SendToQueue_(InterpretedMessage)
+                    # destroy it
+                    self.SqlObject.DestroyCursor(Cursor)
         finally:    
             self.SqlObject.CloseConnection()
+            
+            
+class MessageToSql(multiprocessing.Process):
+    """
+    This class is responsable to add the messages to the database.
+    """
+    def __init__(self, 
+                 SqlObject, 
+                 WorkloadQueue, 
+                 ShutdownEvent,
+                 WorkloadEvent):
+        
+        self.SqlObject = SqlObject
+        self.WorkloadQueue = WorkloadQueue
+        self.ShutdownEvent = ShutdownEvent
+        self.WorkloadEvent = WorkloadEvent
+        super().__init__(name="MessageToSql")
+    
+    def _GetWork_(self, TimeOut):
+        """
+        This method will get the workload from the queue and return it
+        if there is work.
+        """
+        Workload = None
+        try:
+            Workload = self.WorkloadQueue.get(block = True, 
+                                              timeout = TimeOut)
+        except queue.Empty:
+            return False
+        return Workload
+    
+    def _InsertInto_(self, Message, From):
+        """
+        This method is responsable to insert the messages into the 
+        database after resiving them.
+        """
+        # create cursor object
+        DMessage = None
+        SMessage = None
+
+        if isinstance(Message, dict):
+            DMessage = Message
+            SMessage = json.dumps(Message)
+            
+        elif isinstance(Message, str):
+            DMessage = json.loads(Message)
+            SMessage = Message
+
+        
+        SqlCursor = self.SqlObject.CreateCursor()
+        Time = datetime.datetime.fromtimestamp(DMessage["message"]["date"])
+        
+        Columns = {
+                   "Creation_Date":Time,
+                   "Message": SMessage
+                   }
+        if From == "Input":
+            # add message to the input server
+            self.SqlObject.InsertEntry(
+                    Cursor = SqlCursor,
+                    TableName = "Input_Messages_Table",
+                    Columns=Columns,
+                    AutoCommit = True
+                                      )
+        elif From == "Output":
+            # add message to the output table
+            self.SqlObject.InsertEntry(
+                    Cursor = SqlCursor,
+                    TableName = "Output_Messages_Table",
+                    Columns=Columns,
+                    AutoCommit = True
+                                      )
+        self.SqlObject.DestroyCursor(SqlCursor)
+    
+    def run(self):
+        # create the connection to the database
+        self.SqlObject = self.SqlObject.New()
+
+        # main loop 
+        while not self.ShutdownEvent.is_set():
+            Workload = self._GetWork_(1)
+            if isinstance(Workload, tuple):
+                Message, From = Workload
+                self._InsertInto_(Message, From)
+        # finish the workload         
+        while True:
+            Workload = self._GetWork_(0.1)
+            if isinstance(Workload, tuple):
+                Message, From = Workload
+                self._InsertInto_(Message, From)
+            else:
+                if self.WorkloadEvent.is_set():
+                    break

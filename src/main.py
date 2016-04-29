@@ -58,13 +58,12 @@ def Install(Configuration,
     Install.Install()
 
 def TestSql(Configuration, MasterLogger, MasterLanguage):
-    
+
     SqlObject = None
 
     NoConnection = True
-    NrTry = 1
-    while NrTry <= 3:
-
+    NrTry = 0
+    while NrTry < 3:
         SqlObject = sql.Api(
             User = Configuration["Security"]["DatabaseUser"],
             Password = Configuration["Security"]["DatabasePassword"],
@@ -76,19 +75,17 @@ def TestSql(Configuration, MasterLogger, MasterLanguage):
             LoggingObject = MasterLogger,
             LanguageObject = MasterLanguage
         )
-        if SqlObject.DatabaseConnection is False:
+        if SqlObject.DatabaseConnection is None:
             NrTry += 1
         else:
             break
-        
+    
+    SqlObject.CloseConnection()
+
     if NrTry == 3:
-        MasterLogger.info(
-             _("{AppName} has been stopped, because you didn't input the"
-                " correct user name"
-                " of password.").format(
-                AppName=gobjects.__AppName__))
-        raise SystemExit
-    return True
+        return False
+    else:
+        return True
 
 def Main():
     """
@@ -130,7 +127,7 @@ def Main():
     # This object is the event to shutdown all the subprocesses
     # it defaults to true and will be set to false in the end.
     ShutdownEventObject = multiprocessing.Event()
-    ShutdownEventObject.set()
+
     try:
         # initialising the first logger and the language master object
         # this object will be recreated later on
@@ -213,7 +210,14 @@ def Main():
         ))
 
         # test if there is a MySql connection
-        TestSql(Configuration, MasterLogger, MasterLanguage)
+        if TestSql(Configuration, MasterLogger, MasterLanguage) is False:
+            MasterLogger.critical(
+                 _("{AppName} has been stopped, because you didn't "
+                   "input the correct user name or password.").format(
+                    AppName=gobjects.__AppName__)
+                                  )
+            time.sleep(0.5)
+            raise  SystemExit
         
         # starting the Worker
         MainWorker = worker.MainWorker(
@@ -244,7 +248,7 @@ def Main():
                         MasterLogger.info(_("A user shutdown was requested "
                                             "will now shutdown."))
                         break
-
+                
             # use curses
             else:
                 PressedKey = CursesObject.getch()
@@ -261,14 +265,17 @@ def Main():
             
         MasterLogger.info(_("The system is shutting down, please be patient"
                        " until all the workload has been cleared."))
-        
-            
-    except:
-        raise
+
     finally:
-        ShutdownEventObject.clear()
-        MainWorker.join()
+        ShutdownEventObject.set()
+        try:
+            MainWorker.join()   
+        except UnboundLocalError:
+            pass
+        except:
+            raise
         MasterLogger.join()
+        
         if platform.system() != "Windows":
             # clean after the curses module
             time.sleep(1)
