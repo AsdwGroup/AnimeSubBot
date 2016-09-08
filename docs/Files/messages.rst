@@ -8,6 +8,7 @@ This package contains all the message processing modules.
    :glob:
    
    messages.msg_processor.rst
+   messages.saves_sql.rst
    messages.message.rst
    messages.emojis.rst
    

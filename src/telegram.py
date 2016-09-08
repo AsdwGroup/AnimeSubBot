@@ -908,7 +908,7 @@ class OutputTelegramApiServer(_TelegramApiServer):
         #Workload = self._ReadWorkload_()
         Run = True
         while not self.ShutDownEvent.is_set():
-            while self.WorkloadQueue.qsize() > 0 or Run is True:
+            while self.WorkloadQueue.qsize() > 0 and Run is True:
                 """if not self.ConnectionEvent.is_set():
                     self._SaveWorkload_(Workload)
                     self.ConnectionEvent.wait()
@@ -927,7 +927,7 @@ class OutputTelegramApiServer(_TelegramApiServer):
                     ReturnMessage = self._SendToTelegram_(Work)
                     self._SaveMessages_({"message":ReturnMessage["result"]})
 
-                
+      
         while not self.WorkloadDoneEvent.is_set():
             Work = self._GetWorkload_(self.Timeout)
             if Work is not None:

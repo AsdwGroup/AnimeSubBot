@@ -3,12 +3,12 @@
 
 # standard lib
 import re
+import json
 import datetime
 
 # The custom modules
 from . import message # imports in the same folder (module)
 from . import emojis
-
 
 class MessagePreProcessor(object):
     """
@@ -118,7 +118,7 @@ class MessagePreProcessor(object):
             self.AddUser()
         else:
             # Get the Internal user id
-            self.InternalUserId = self.GetInternalUserId()
+            self.InternalUserId, self.IsAdmin = self.GetUserData()
 
         # Here we are initialising the function for the translations.
         # Get the user settings from the user that has send the message
@@ -359,7 +359,7 @@ class MessagePreProcessor(object):
         )[0]
 
         TableName = "User_Setting_Table"
-        self.InternalUserId = self.GetInternalUserId()
+        self.InternalUserId = self.GetUserData()[0]
         Columns = {
             "Master_Setting_Id": MasterSetting["Id"],
             "Set_By_User": self.InternalUserId,
@@ -374,28 +374,36 @@ class MessagePreProcessor(object):
 
         self.SqlObject.Commit()
 
-    def GetInternalUserId(self):
+    def GetUserData(self):
         """
-        This method will get the internal user id from the database.
-        
-        This method will return the internal user id directly.
+        This method will get the internal user id and the admin state 
+        from the database.
         
         Variables:
             \-
         """
         # first the internal user id
         FromTable = "User_Table"
-        Columns = ["Internal_Id"]
+        Columns = ["Internal_Id", "Is_Admin"]
         Where = [["External_Id", "=", "%s"]]
         Data = (self.UserId,)
 
-        return self.SqlObject.SelectEntry(
+        temp = self.SqlObject.SelectEntry(
             self.SqlCursor,
             FromTable=FromTable,
             Columns=Columns,
             Where=Where,
             Data=Data
-        )[0]["Internal_Id"]
+        )[0]
+        internalUserId = temp["Internal_Id"]
+        
+        Is_Admin = temp["Is_Admin"]
+        if Is_Admin == 0:
+            Is_Admin = False
+        else:
+            Is_Admin = True
+            
+        return internalUserId, Is_Admin
     
     @staticmethod
     def Chunker(ListOfObjects, SizeOfChunks):
@@ -625,46 +633,7 @@ class MessagePreProcessor(object):
                                                     )
                                      )
             return False
-    
-    def SaveMessages(self, Input, Output):
-        """
-        This method saves the message into the database 
-        
-        Variables:
-            Input                         ``list``
-                input messages
-            
-            Output                        ``list``
-                output messages
-        """
-        
-        if not isinstance(Input, list):
-            Input = [Input]
-        
-        if not isinstance(Output, list):
-            Output = [Output]
-            
-        for Element in Input:
-            Columns = {
-                       "By_User": self.UserId,
-                       "Message": Element
-                       }
-            self.SqlObject.InsertEntry(
-                    Cursor = self.SqlCursor,
-                    TableName = "Input_Messages_Table",
-                    Columns=Columns,
-                   )
-        
-        for Element in Output:
-            Columns = {
-                       "By_User": self.UserId,
-                       "Message": Element
-                       }
-            self.SqlObject.InsertEntry(
-                    Cursor = self.SqlCursor,
-                    TableName = "Output_Messages_Table",
-                    Columns=Columns,
-                   )
+
         
 class MessageProcessor(MessagePreProcessor):
     """
@@ -777,49 +746,84 @@ class MessageProcessor(MessagePreProcessor):
                 MessageObject.Text = self._("Welcome.\nWhat can I do for you?"
                                             "\nPress /help for all my commands"
                                             )
+                Markup = [
+                        ["/help"],
+                        ["/list"]
+                    ]
+                if self.IsAdmin is True:
+                    Markup[0].append("/admin")
+                    
+                MessageObject.ReplyKeyboardMarkup(Markup,
+                    OneTimeKeyboard=True
+                )
+                
+        # this command will list the anime content on the server
         elif self.Text == "/list":
             pass
         elif self.Text == "/done":
+            
+            
+            """
             LastSendCommand = self.GetLastSendCommand()
             LastUsedId = LastSendCommand["Last_Used_Id"]
-            LastCommand = LastSendCommand["Command"]
+            LastCommand = LastSendCommand["Command"]"""
             
         elif self.Text == "/help":
             MessageObject.Text = self._(
                 "Work in progress! @AnimeSubBot is a bot."
             )
-        
-        elif self.Text == "/settings":
-            # This command will send the possible setting to the user
-            self.SetLastSendCommand("/settings", None)
-            MessageObject.Text = self._("Please, choose the setting to change:"
-                                        )
-            MessageObject.ReplyKeyboardMarkup(
-                [
-                    ["/language"],
-                    ["/comming soon"]
+        elif self.Text == "/admin":
+            if self.IsAdmin:
+                MessageObject.Text = self._(
+                    "Welcome to the admin commands, what do you want to do?"
+                    )
+                
+                MessageObject.ReplyKeyboardMarkup([
+                                    [self._("Anime")],
+                                    [self._("Channel")],
+                                    [self._("{BackEmoji}back").format(
+                                                                      BackEmoji = emojis.Emojis().LEFTWARDS_ARROW_WITH_HOOK)]
+                                                  ],
+                                                  OneTimeKeyboard=True)
+                self.SetLastSendCommand("/anime", None)
+            else:
+                pass
+            
+        # the settings are right now not supported, maybe later.
+            """elif self.Text == "/settings":
+                # This command will send the possible setting to the user
+                self.SetLastSendCommand("/settings", None)
+                MessageObject.Text = self._("Please, choose the setting to change:"
+                                            )
+                MessageObject.ReplyKeyboardMarkup(
+                    [
+                        ["/language"],
+                        ["/comming soon"]
+                    ],
+                    OneTimeKeyboard=True
+                )
+                
+            elif self.Text == "/language":
+                # This option will change the user language
+                # Set the last send command
+    
+                self.SetLastSendCommand("/language")
+    
+                MessageObject.Text = self._(
+                    "Please choose your preferred language:"
+                )
+                MessageObject.ReplyKeyboardMarkup([
+                    ["English"],
+                    ["Deutsch"],
+                    ["Français"]
                 ],
-                OneTimeKeyboard=True
-            )
-        elif self.Text == "/language":
-            # This option will change the user language
-            # Set the last send command
-
-            self.SetLastSendCommand("/language")
-
-            MessageObject.Text = self._(
-                "Please choose your preferred language:"
-            )
-            MessageObject.ReplyKeyboardMarkup([
-                ["English"],
-                ["Deutsch"],
-                ["Français"]
-            ],
-                OneTimeKeyboard=True
-            )
+                    OneTimeKeyboard=True
+                )
+            """
         else:
             # send that the command is unknown
-            pass
+            MessageObject.Text = self._("I apologize, but this command is not supported.\n"
+                                        "Press or enter /help to get help.")
 
         return MessageObject
 
@@ -838,20 +842,25 @@ class MessageProcessor(MessagePreProcessor):
 
         # Get the last send command and the last used id
         LastSendCommand = self.GetLastSendCommand()
-        LastUsedId = LastSendCommand["Last_Used_Id"]
-        LastCommand = LastSendCommand["Command"]
+        self.LastUsedId = LastSendCommand["Last_Used_Id"]
+        self.LastCommand = LastSendCommand["Command"]
 
-        if LastCommand is None:
-            # if there is nothing return de default.
+        if self.LastCommand is None:
+            # if there is nothing return the default.
             return MessageObject
 
+        """
         if LastCommand == "/language":
             self.ChangeUserLanguage(self.Text)
             MessageObject.Text = self._("Language changed successfully.")
             MessageObject.ReplyKeyboardHide()
             self.ClearLastCommand()
-
-
+        """
+        
+        if self.LastCommand.startswith("/admin"):
+            MessageObject = self.InterpretAdminCommands(MessageObject)
+        
+        
         return MessageObject
 
     def InterpretGroupCommand(self, MessageObject):
@@ -879,5 +888,96 @@ class MessageProcessor(MessagePreProcessor):
             MessageObject                 ``object``
                 is the message object that has to be modified
         """
-        raise NotImplementedError
+        self.LastCommand
+        if self.LastCommand == "/anime":
+            if self.LastCommand == self._("{BackEmoji}back").format(
+                                    BackEmoji = emojis.Emojis().LEFTWARDS_ARROW_WITH_HOOK):
+                self.Text = "/start"
+                self.ClearLastCommand()
+                MessageObject = self.InterpretMessage()
+            elif self.Text == self._("Anime"):
+                MessageObject.Text = self._("Set the channel: (not supported)")
+                Channels = Channel(self.SqlObject, 
+                                 self.SqlCursor).GetTheChannels()
+                """MessageObject.ReplyKeyboardMarkup(
+                                                  [Channels])
+                ""                       [
+                                        [self._("Add channel")],
+                                        [self._("Change description")],
+                                        [self._("Delete channel")],
+                                    ]
+                )"""
+            elif self.Text == self._("Channel"):
+                MessageObject.Text = self._("What do you want to do?")
+                MessageObject.ReplyKeyboardMarkup(
+                                    [
+                                        [self._("Add channel")],
+                                        [self._("Change description")],
+                                        [self._("Delete channel")],
+                                    ]
+                            )
         
+        return MessageObject
+
+class Channel(object):
+    
+    def __init__(self,
+                 SqlObject,
+                 Cursor):
+        self.SqlObject = SqlObject 
+        self.Cursor = Cursor
+    
+    def AddChannel(self, Name):
+        pass
+        
+    def ChannelExists(self, Name):
+        """
+        This method will detect if the use already exists or not.
+        
+        The following query will return 1 if a user with the specified 
+        username exists a 0 otherwise.
+        
+        .. code-block:: sql\n
+            SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = 'username')
+        
+        It will return a True if the database returns a 1 and a False
+        if the database a 0.
+        Variables:
+            \-
+        """
+
+        exists = self.SqlObject.ExecuteTrueQuery(
+            self.SqlObject.CreateCursor(Dictionary=False),
+            Query=("SELECT EXISTS(SELECT 1 FROM User_Table WHERE"
+                   " External_Id = %s);"
+                   ),
+            Data=self.UserId
+        )[0][0]
+        if exists == 0:
+            return False
+        else:
+            return True
+
+    
+    def GetChannels(self):
+        """
+        this method will get all the channels 
+        """
+        Channels = None
+        Columns = ("True_Name",)
+        ChannelsTemp = self.SqlObject.Select(
+                    Cursor = self.Cursor,
+                    FromTable = "Channel_Table",
+                    Columns = Columns,)
+        print(Channels)
+        
+        return Channels
+
+class Anime(object):
+    
+    def __init__(self,
+                 SqlObject,
+                 Cursor):
+        self.SqlObject = SqlObject 
+        self.Cursor = Cursor
+    
