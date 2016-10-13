@@ -174,7 +174,7 @@ class Installer(object):
             self.Configuration.AddSecureConfigurationParser(self.SConfiguration)
         elif TypeOfInstallation == "SC":
             self.Configuration.ReadConfigurationFile()
-            self.InstallSecureConfiguration()
+            self._InstallSecureConfiguration_()
             self.SConfiguration.ReadConfigurationFile()
             self.Configuration.AddSecureConfigurationParser(self.SConfiguration)
         elif TypeOfInstallation == "A":

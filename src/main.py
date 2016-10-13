@@ -291,6 +291,6 @@ def Main():
 
 
 if __name__ == "__main__":
-    INTERNAL_KEY =r"2#<&Sd8!upX.jm(n"
+    INTERNAL_KEY = r"2#<&Sd8!upX.jm(n"
     multiprocessing.freeze_support()
     Main()

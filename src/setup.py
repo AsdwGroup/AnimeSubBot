@@ -91,7 +91,7 @@ for i in LanguageFilesArray:
     LogPrint("Compiling language file {Name}".format(Name = i))
     
     #compiling
-    subprocess.call(["py", "C:\\Python34\\Tools\\i18n\\msgfmt.py", 
+    subprocess.call(["py", "C:\\Python35\\Tools\\i18n\\msgfmt.py", 
                      "-o", "{OutputFile}".format(OutputFile=DirectoryOfLanguageSub+"\\Telegram.mo"),
                      "{InputFile}".format(
                                           InputFile="{DirectoryOfSetup}\\Language\\"

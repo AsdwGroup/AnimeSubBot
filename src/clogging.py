@@ -406,7 +406,13 @@ class Logger(logging.Logger):
         
         with self.MLock:
             super().log(level, msg, *args, **kwargs)
-                    
+
+    def join(self):
+        """
+        This method doesn't do anything. It looks to keep out errors, when this logger is used.
+        """
+        pass
+            
 class LoggingProcessServer(multiprocessing.Process):
     """
     This class is a child class of the multiprocessing.Process.   

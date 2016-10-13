@@ -318,11 +318,14 @@ class SubWorker(multiprocessing.Process):
     def run(self):
         self.SqlObject = self.SqlObject.New()
         try:
+            LastMessageTime = time.time() # this is the last time a message has been sent. Defaults to the init time
             while not self.ShutdownEvent.is_set():
                 Timeout = 1
 
                 Work = self._GetWorkFromQueue_(Timeout)
                 if Work is not None:
+                    #set the last time 
+                    LastMessageTime = time.time()
                     # create cursor object for the request
                     Cursor = self.SqlObject.CreateCursor()
                     
@@ -344,7 +347,22 @@ class SubWorker(multiprocessing.Process):
                             self._SendToQueue_(InterpretedMessage)
                     # destroy it
                     self.SqlObject.DestroyCursor(Cursor)
+                else:
+                    if (time.time() - LastMessageTime) > 3600:
+                        self._WakeUPMySql()
         finally:    
             self.SqlObject.CloseConnection()
             
-            
+    def _WakeUPMySql(self):
+        """
+        This method will wake up the MySql database once per hour.
+
+        Variables:
+            \-
+        """
+        
+        Cursor = self.SqlObject.CreateCursor()
+        # some random query 
+        self.SqlObject.ExecuteTrueQuery(Cursor, "SELECT EXISTS(SELECT 1 FROM User_Table WHERE User_Name = 'TheBlueFireFox')")
+
+        self.SqlObject.DestroyCursor(Cursor)

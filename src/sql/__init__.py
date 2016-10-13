@@ -6,9 +6,8 @@ A additional Sqlite-interface needed for the DatabaseConnection.
 """
 # standard library
 import sys
-import time
-# This is needed to sleep while trying
-# to reconnect to the server.
+import time # This is needed to sleep while trying to reconnect to the server.
+
 # third party requirements
 import mysql.connector
 # The custom modules
@@ -153,7 +152,6 @@ class Api(object):
                 ).format(Error=sys.exc_info()[0])
             )
             self.CloseConnection()
-
 
     def CloseConnection(self, ):
         """
@@ -1088,9 +1086,6 @@ class SqlDatabaseInstaller(object):
         |Internal_Id       |contains the Id    |Integer              | 
         |                  |of the Anime       |(auto increment)     |
         +------------------+-------------------+---------------------+
-        |External_Name     |contains the name  |Text                 |
-        |                  |of the channel     |(Null)               |
-        +------------------+-------------------+---------------------+
         |Creation_Date     |contains the       |timestamp            |
         |                  |creation date of   |(current timestamp)  |
         |                  |of the anime       |                     |     
@@ -1106,7 +1101,7 @@ class SqlDatabaseInstaller(object):
         |                  |to the channel     |                     |
         |                  |after upload       |                     |
         +------------------+-------------------+---------------------+
-        |    UNIQUE (External_Name)                                  |     
+        |    UNIQUE (True_Name)                                  |     
         +------------------------------------------------------------+ 
         |    PRIMARY KEY (Internal_Id)                               |
         +------------------------------------------------------------+
@@ -1205,7 +1200,7 @@ class SqlDatabaseInstaller(object):
             Port = self.Port,
             ReconnectTimer = self.ReconnectTimer,
         )
-        
+
         Cursor = ApiObject.CreateCursor()
         return ApiObject, Cursor 
     
@@ -1347,15 +1342,18 @@ class SqlDatabaseInstaller(object):
         
         self.SqlObject.CreateTable(self.Cursor, TableName, TableData, )
         
-        # UserTable
+        # Channel_Table
         TableName = "Channel_Table"
         TableData = (
             ("Internal_Id", "Integer NOT NULL AUTO_INCREMENT"),
-            ("External_Id", "Integer DEFAULT NULL"),
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+            ("By_User", "Integer DEFAULT NULL"),
             ("True_Name", "TEXT DEFAULT NULL"),
             ("Description", "TEXT DEFAULT NULL"),
-            ("UNIQUE", "External_Id"),  
+            ("Last_Changes", "Integer DEFAULT NULL"),
+            ("FOREIGN KEY", "By_User", "User_Table(Internal_Id)"),
+            ("FOREIGN KEY", "Last_Changes", "User_Table(Internal_Id)"),
+            ("UNIQUE", "True_Name"),  
             ("PRIMARY KEY", "Internal_Id"),
         )
 
@@ -1367,7 +1365,7 @@ class SqlDatabaseInstaller(object):
             ("Id", "Integer NOT NULL AUTO_INCREMENT"),            
             ("Creation_Date", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
             ("Anime_Name", "Varchar(256) DEFAULT NULL"),
-            ("Airing_Year", "YEAR(4) DEFAULT NULL"),
+            ("Airing_Year", "Varchar(256) DEFAULT NULL"),
             ("MyAnimeList_Url", "Varchar(2083)"),
             ("Telegram_Url", "Varchar(2083)"),
             ("Channel_Id", "Integer DEFAULT NULL"),

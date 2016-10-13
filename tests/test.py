@@ -1,19 +1,4 @@
-Skip to content
-This repository
-Search
-Pull requests
-Issues
-Gist
- @TheRedFireFox
- Unwatch 1
-  Star 0
- Fork 0 TheRedFireFox/AnimeSubBot
- Code  Issues 1  Pull requests 0  Wiki  Pulse  Graphs  Settings
-Tree: ba33372781 Find file Copy pathAnimeSubBot/temp.py
-66dee98  2 days ago
-@TheRedFireFox TheRedFireFox upload
-1 contributor
-RawBlameHistory     57 lines (46 sloc)  1.6 KB
+
 import multiprocessing
 import time
 import threading
@@ -69,5 +54,3 @@ if __name__ == '__main__':
     time.sleep(10)
     e.set()
     print('main: event is set')
-Status API Training Shop Blog About
-© 2016 GitHub, Inc. Terms Privacy Security Contact Help

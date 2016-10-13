@@ -12,9 +12,11 @@ import pickle
 import base64
 import collections
 import configparser
-import Crypto.Cipher.AES
-import Crypto.Hash.SHA256
-import Crypto.Random
+import Cryptodome.Cipher.AES
+import Cryptodome.Hash.SHA256
+import Cryptodome.Random
+
+
 
 class DefaultConfigurationParser(configparser.RawConfigParser):
     """
@@ -285,9 +287,9 @@ class SecureConfigurationParser(DefaultConfigurationParser):
                 super values.
         """
         self.HashKey = SecureConfigurationParser.HashString(InternalKey)
-        self.BlockSize = Crypto.Cipher.AES.block_size
+        self.BlockSize = Cryptodome.Cipher.AES.block_size
         self.Padding = "|"
-        self.Mode = Crypto.Cipher.AES.MODE_CBC
+        self.Mode = Cryptodome.Cipher.AES.MODE_CBC
         # force the .psi extention
         self.FileName = FileName
         FileInfo = os.path.splitext(FileName)
@@ -306,7 +308,7 @@ class SecureConfigurationParser(DefaultConfigurationParser):
         Variables:
             \-
         """
-        return Crypto.Random.new().read(self.BlockSize)
+        return Cryptodome.Random.new().read(self.BlockSize)
         
     def WriteConfigurationFile(self, 
                                TelegramToken, DatabaseUser, 
@@ -368,7 +370,7 @@ class SecureConfigurationParser(DefaultConfigurationParser):
     @staticmethod
     def HashString(String):
         # variables needed for the encryption  
-        SHA256Enc = Crypto.Hash.SHA256.new()
+        SHA256Enc = Cryptodome.Hash.SHA256.new()
         SHA256Enc.update(String.encode("utf-8"))
         return SHA256Enc.digest()
     
@@ -405,7 +407,7 @@ class SecureConfigurationParser(DefaultConfigurationParser):
         if len(String) % 16 != 0:
             String = String + ((16 - (len(String) % 16)) * self.Padding.encode("utf-8"))
         IV = self.GetNewIV()
-        Encryptor = Crypto.Cipher.AES.new(self.HashKey, 
+        Encryptor = Cryptodome.Cipher.AES.new(self.HashKey, 
                                           self.Mode, IV=IV)
         
         return IV, Encryptor.encrypt(String)
@@ -421,7 +423,7 @@ class SecureConfigurationParser(DefaultConfigurationParser):
             Ciphertext                    ``string``
                 a string to decode
         """
-        Decryptor = Crypto.Cipher.AES.new(Key, self.Mode, IV=IV)
+        Decryptor = Cryptodome.Cipher.AES.new(Key, self.Mode, IV=IV)
         Text = Decryptor.decrypt(Ciphertext)
         # This regex will search for all padding instances that have 
         # between 1-15 times at the end of the text.

@@ -59,6 +59,9 @@ class MessagePreProcessor(object):
 
         """
 
+        self.LastSendCommand = None
+        self.LastSendCommand = None
+        self.LastUsedId = None
         # Predefining attributes so that it later can be used for evil.
         self.LoggingObject = None
         self.ConfigurationObject = None
@@ -292,8 +295,7 @@ class MessagePreProcessor(object):
             # Message object in this field will not contain further 
             # reply_to_message fields even if it is itself a reply.
             self.PinnedMessage = MessageObject["message"]["pinned_message"]       
-        
-        
+               
     def UserExists(self, ):
         """
         This method will detect if the use already exists or not.
@@ -549,6 +551,11 @@ class MessagePreProcessor(object):
             
         Variables:
             \-
+        
+        Return:
+            - LastSendCommand["Last_Used_Id"]
+            - LastSendCommand["Command"]
+           
         """
 
         FromTable = "Session_Table"
@@ -564,9 +571,11 @@ class MessagePreProcessor(object):
         )
 
         if len(LastSendCommand) > 0:
-            return LastSendCommand[0]
-
-        return None
+            LastSendCommand =  LastSendCommand[0]
+        else:
+            LastSendCommand["Last_Used_Id"] = None
+            LastSendCommand["Command"] = None
+        return LastSendCommand
 
     def ClearLastCommand(self):
         """
@@ -634,6 +643,14 @@ class MessagePreProcessor(object):
                                      )
             return False
 
+    def InterpretMessage(self):
+        """
+        This method is here to be overriden by a child class.
+        
+        Variables:
+            \-
+        """
+        raise NotImplementedError
         
 class MessageProcessor(MessagePreProcessor):
     """
@@ -695,7 +712,7 @@ class MessageProcessor(MessagePreProcessor):
             # If the name of the bot is used in the
             # command delete the @NameOfBot
             self.Text = re.sub(r"^(@\w+[bB]ot\s+)?", "", self.Text)
-
+            
             if self.InGroup is False:
                 if self.Text.startswith("/"):
                     MessageObject = self.InterpretUserCommand(MessageObject)
@@ -708,6 +725,7 @@ class MessageProcessor(MessagePreProcessor):
                     MessageObject = self.InterpretGroupNonCommand(
                         MessageObject
                     )
+                   
         else:
             MessageObject = None
             
@@ -741,53 +759,42 @@ class MessageProcessor(MessagePreProcessor):
         """
         # register the command in the database for later use
         if self.Text.startswith("/start"):
-            Parts = self.Text.split(" ")
-            if len(Parts) <= 1:
-                MessageObject.Text = self._("Welcome.\nWhat can I do for you?"
+            MessageObject.Text = self._("Welcome.\nWhat can I do for you?"
                                             "\nPress /help for all my commands"
                                             )
-                Markup = [
+            Markup = [
                         ["/help"],
                         ["/list"]
                     ]
-                if self.IsAdmin is True:
-                    Markup[0].append("/admin")
+            if self.IsAdmin is True:
+                Markup[0].append("/admin")
                     
-                MessageObject.ReplyKeyboardMarkup(Markup,
-                    OneTimeKeyboard=True
-                )
+            MessageObject.ReplyKeyboardMarkup(Markup,
+                 OneTimeKeyboard=True
+            )
                 
+            self.ClearLastCommand()
         # this command will list the anime content on the server
         elif self.Text == "/list":
-            pass
+            # this command will send the anime list
+            MessageObject.Text = self._("Sorry\nAt the moment this command is not supported")
+            
         elif self.Text == "/done":
-            
-            
-            """
-            LastSendCommand = self.GetLastSendCommand()
-            LastUsedId = LastSendCommand["Last_Used_Id"]
-            LastCommand = LastSendCommand["Command"]"""
-            
+            self.Text = "/start"
+
+            MessageObject = self.InterpretUserCommand(MessageObject)
+
         elif self.Text == "/help":
             MessageObject.Text = self._(
                 "Work in progress! @AnimeSubBot is a bot."
             )
         elif self.Text == "/admin":
+            # if that person is an administrator.
             if self.IsAdmin:
-                MessageObject.Text = self._(
-                    "Welcome to the admin commands, what do you want to do?"
-                    )
-                
-                MessageObject.ReplyKeyboardMarkup([
-                                    [self._("Anime")],
-                                    [self._("Channel")],
-                                    [self._("{BackEmoji}back").format(
-                                                                      BackEmoji = emojis.Emojis().LEFTWARDS_ARROW_WITH_HOOK)]
-                                                  ],
-                                                  OneTimeKeyboard=True)
-                self.SetLastSendCommand("/anime", None)
+                self.InterpretAdminCommands(MessageObject)
+                self.SetLastSendCommand("/admin", None)
             else:
-                pass
+                MessageObject.Text = self._("You don't have the right to use that command.")
             
         # the settings are right now not supported, maybe later.
             """elif self.Text == "/settings":
@@ -843,21 +850,22 @@ class MessageProcessor(MessagePreProcessor):
         # Get the last send command and the last used id
         LastSendCommand = self.GetLastSendCommand()
         self.LastUsedId = LastSendCommand["Last_Used_Id"]
-        self.LastCommand = LastSendCommand["Command"]
+        self.LastSendCommand = LastSendCommand["Command"]
 
-        if self.LastCommand is None:
+        if self.LastSendCommand is None:
             # if there is nothing return the default.
             return MessageObject
 
         """
-        if LastCommand == "/language":
+        if LastSendCommand == "/language":
             self.ChangeUserLanguage(self.Text)
             MessageObject.Text = self._("Language changed successfully.")
             MessageObject.ReplyKeyboardHide()
             self.ClearLastCommand()
         """
         
-        if self.LastCommand.startswith("/admin"):
+        if self.LastSendCommand.startswith("/admin"):
+            # see that the admin commands are interpreted correctly
             MessageObject = self.InterpretAdminCommands(MessageObject)
         
         
@@ -887,36 +895,142 @@ class MessageProcessor(MessagePreProcessor):
         Variables:
             MessageObject                 ``object``
                 is the message object that has to be modified
+                
+        Commands:
+            Channel
+            - add channel
+            - change description
+            - send description
+            - delete channel
+            
+            Anime list
+            - publish list
+            - add anime 
+            - configure anime
+            - remove Anime 
         """
-        self.LastCommand
-        if self.LastCommand == "/anime":
-            if self.LastCommand == self._("{BackEmoji}back").format(
-                                    BackEmoji = emojis.Emojis().LEFTWARDS_ARROW_WITH_HOOK):
-                self.Text = "/start"
-                self.ClearLastCommand()
-                MessageObject = self.InterpretMessage()
-            elif self.Text == self._("Anime"):
-                MessageObject.Text = self._("Set the channel: (not supported)")
-                Channels = Channel(self.SqlObject, 
-                                 self.SqlCursor).GetTheChannels()
-                """MessageObject.ReplyKeyboardMarkup(
-                                                  [Channels])
-                ""                       [
-                                        [self._("Add channel")],
-                                        [self._("Change description")],
-                                        [self._("Delete channel")],
-                                    ]
-                )"""
-            elif self.Text == self._("Channel"):
-                MessageObject.Text = self._("What do you want to do?")
-                MessageObject.ReplyKeyboardMarkup(
-                                    [
-                                        [self._("Add channel")],
-                                        [self._("Change description")],
-                                        [self._("Delete channel")],
-                                    ]
-                            )
-        
+        if self.Text != "/admin":
+            if self.LastSendCommand == "/admin":
+                # the default screen
+                if self.Text.startswith(self._("anime")):
+                    MessageObject.Text = self._("What do you want to do?")
+                    MessageObject.ReplyKeyboardMarkup(
+                        [
+                            [self._("publish list")],
+                            [self._("add anime")],
+                            [self._("configure anime")],
+                            [self._("remove anime")],                        
+                            [self._("back")],
+                        ],
+                        OneTimeKeyboard=True
+                    )
+                    self.SetLastSendCommand("/admin anime", None)
+                        
+                elif self.Text.startswith(self._("channel")):
+                    MessageObject.Text = self._("What do you want to do?")
+                    MessageObject.ReplyKeyboardMarkup(
+                        [
+                            [self._("add channel")],
+                            [self._("change description")],
+                            [self._("send description")],
+                            [self._("delete channel")],
+                            [self._("back")],
+                        ],
+                        OneTimeKeyboard=True
+                    )
+                    self.SetLastSendCommand("/admin channel", None)
+                elif self.Text == self._("back"):
+                    self.Text = "/start"
+                    MessageObject = self.InterpretUserCommand(MessageObject)
+                    
+            elif self.LastSendCommand.startswith("/admin anime"):
+                # the anime commands
+                if self.Text == "publish list":
+                    # 1) publish to channel
+                    pass
+                elif self.Text == "add anime":
+                    # Please enter the url and be patient while the program extracts the information. To cancel please write CANCEL. -- ;:; -> delimeter
+                    # 1) automatic (a) vs manual entry (b)
+                    # 2a) extract URL =?> CANCEL -> to admin
+                    # 3a) confirm Yes -> save data / No -> to admin
+                    # 4a) add telegram url
+                    # 2b) enter name
+                    # 3b) enter publish date
+                    # 4b) enter myanimelist.net url
+                    # 5b) enter telegram url
+                    pass
+                elif self.Text == "configure anime":
+                    # 1) search by name
+                    # 2) show possible names (repeats until correct)
+                    # 3) change by data => Telegram URL; Date; Name;
+                    pass
+                elif self.Text == "remove anime":
+                    # 1) search by name
+                    # 2) show possible names (repeats until correct)
+                    # 3) check if user is sure and then delete anime
+                    pass
+                elif self.Text == "back":
+                    self.Text = "/admin"
+                    self.ClearLastCommand()
+                    MessageObject = self.InterpretUserCommand(MessageObject)
+                    
+            elif self.LastSendCommand.startswith("/admin channel"):
+                # the channel commands
+                ChannelObject = Channel(self.SqlObject, self.SqlCursor)
+                if self.LastSendCommand.startswith("/admin channel"):
+                    #if self.Text.startswith("add channel"):
+                    # 1) Please enter the name of the channel - enter CANSEL to exit
+                    # 1a) back to admin channnel
+                    # 2) check if channel exists - save or error
+                    print(self.Text == "add channel")
+                    if self.Text == "add channel":
+                        MessageObject.Text = self._("Please send the name of the channel in this form: @example_channel")
+                        self.SetLastSendCommand("/admin channel add", None)
+                    elif self.LastSendCommand == "/admin add channel add":
+                        if self.Text.startswith("@"):
+                        # enter the channel name into the database
+                            if ChannelObject.ChannelExists(self.Text) is False:
+                                ChannelObject.AddChannel(self.Text, ByUser = self.InternalUserId)
+                                MessageObject = self._("Please enter the channel description, to chancel send CANCEL")
+                                self.SetLastSendCommand("/admin channel add channel description" + self.Text)
+                            else:
+                                MessageObject.Text = self._("The channel already exists.\nTo change the description choose \"change description\" in the options.")
+                                self.SetLastSendCommand("/admin channel")
+                    elif self.LastSendCommand.startswith("/admin channel add channel description"):
+                        Name = self.LastSendCommand.split(" ")[5]
+                        if self.Text != "CANCEL":
+                            MessageObject.Text = self._("Channel setup successful.")
+                            ChannelObject.ChangeDescription(Name, self.Text, ByUser = self.InternalUserId)
+                            self.SetLastSendCommand("/admin channel")
+                        else:
+                            MessageObj.Text = self._("To change the description choose \"change description\" in the options.")
+                            self.SetLastSendCommand("/admin channel")
+
+                    elif self.Text == "change description":
+                        pass
+                    elif self.Text == "send description":
+                        pass
+                    elif self.Text == "delete channel":
+                        pass
+                    elif self.Text == "back":
+                        self.Text = "/admin"
+                        self.ClearLastCommand()
+                        MessageObject = self.InterpretUserCommand(MessageObject)
+                        
+                elif self.LastSendCommand.startswith("/admin channel add"):
+                    # this adds a new channel to the system 
+                    Channel.AddChannel(self.Text)
+        else:               
+            MessageObject.Text = self._("How can I help you?")
+            MessageObject.ReplyKeyboardMarkup(
+                [
+                    [self._("anime")],
+                    [self._("channel")],
+                    [self._("back")],
+                ],
+                OneTimeKeyboard=True
+            )
+            self.SetLastSendCommand("/admin", None)
         return MessageObject
 
 class Channel(object):
@@ -927,9 +1041,62 @@ class Channel(object):
         self.SqlObject = SqlObject 
         self.Cursor = Cursor
     
-    def AddChannel(self, Name):
-        pass
+    def AddChannel(self, Name, Description = None, ByUser = None):
+        """
+        This methode will insert the channel into the database.
+
+        Variables:
+            - Name                   ``string``
+                the true name of the channnel, this will be used as autifications methode.
+            - Desciption             ``string``
+                the channnel description   
+            - ByUser                 ``integer``
+                the user by which the channel was created by
+        """
+        Data = {"True_Name": Name}
+
+        if Description is not None:
+            Data["Description"] =  Description
+
+        if ByUser is not None:
+            Data["By_User"] = ByUser
+            Data["Last_Changes"] = ByUser
+
+        self.SqlObject.InsertEntry(self.Cursor,
+                                   "Channel_Table",
+                                    Data,
+                                   )
+        self.SqlObject.Commit()
+    
+    def ChangeDescription(self, Name, Description, ByUser = None):
+        """
+        This methode will change the description of the channel.
+
+        Variables:
+            - Name                   ``string``
+                the true name of the channnel, this will be used as autifications methode.
+            - Desciption             ``string``
+                the channnel description   
+        """
+        Data = {"Description": Description}
+        if ByUser is not None:
+            Data["Last_Changes"] = ByUser
         
+        Where = [
+            [
+                 "True_Name", 
+                 "=", 
+                 Name,
+                ],
+            ]
+
+        self.SqlObject.UpdateEntry(self.Cursor,
+                                  "Channel_Table",
+                                  Data,
+                                  Where
+                                  )
+        self.SqlObject.Commit()
+    
     def ChannelExists(self, Name):
         """
         This method will detect if the use already exists or not.
@@ -958,7 +1125,6 @@ class Channel(object):
         else:
             return True
 
-    
     def GetChannels(self):
         """
         this method will get all the channels 
@@ -972,7 +1138,10 @@ class Channel(object):
         print(Channels)
         
         return Channels
-
+    
+    def GetDescription(self, Name):
+        pass
+    
 class Anime(object):
     
     def __init__(self,
