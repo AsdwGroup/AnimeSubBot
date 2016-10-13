@@ -310,10 +310,7 @@ class SubWorker(multiprocessing.Process):
         except:
             raise
         
-        return Work
-            
-    def _SendToQueue_(self, Object):
-        self.OutputQueue.put(Object)
+        return Work        
     
     def run(self):
         self.SqlObject = self.SqlObject.New()
@@ -331,6 +328,7 @@ class SubWorker(multiprocessing.Process):
                     
                     MessageProcessor = messages.msg_processor.MessageProcessor(
                                     Work,
+                                    OutputQueue = self.OutputQueue, 
                                     LanguageObject = self.LanguageObject,
                                     SqlObject = self.SqlObject,
                                     Cursor = Cursor,
@@ -339,12 +337,7 @@ class SubWorker(multiprocessing.Process):
                                     )
                     InterpretedMessage = MessageProcessor.InterpretMessage()
                     
-                    if InterpretedMessage is not None:
-                        if isinstance(InterpretedMessage, list):
-                            for Message in InterpretedMessage:
-                                self._SendToQueue_(Message)
-                        elif isinstance(InterpretedMessage, dict):
-                            self._SendToQueue_(InterpretedMessage)
+
                     # destroy it
                     self.SqlObject.DestroyCursor(Cursor)
                 else:

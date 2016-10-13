@@ -46,6 +46,7 @@ class MessagePreProcessor(object):
 
     def __init__(self, 
                  MessageObject,
+                 OutputQueue,
                  SqlObject,
                  Cursor,
                  LanguageObject,
@@ -62,10 +63,15 @@ class MessagePreProcessor(object):
         self.LastSendCommand = None
         self.LastSendCommand = None
         self.LastUsedId = None
+        # This variable will stop the system if the message was send during process
+        self.MessageSend = False
+
         # Predefining attributes so that it later can be used for evil.
         self.LoggingObject = None
         self.ConfigurationObject = None
 
+        # output queue
+        self._OutputQueue_ = OutputQueue
         # SqlObjects
         self.SqlObject = SqlObject
         self.SqlCursor = Cursor
@@ -119,9 +125,9 @@ class MessagePreProcessor(object):
         # Add user to the system if not exists
         if self.UserExists() is False:
             self.AddUser()
-        else:
-            # Get the Internal user id
-            self.InternalUserId, self.IsAdmin = self.GetUserData()
+        
+        # Get the Internal user id
+        self.InternalUserId, self.IsAdmin = self.GetUserData()
 
         # Here we are initialising the function for the translations.
         # Get the user settings from the user that has send the message
@@ -295,7 +301,26 @@ class MessagePreProcessor(object):
             # Message object in this field will not contain further 
             # reply_to_message fields even if it is itself a reply.
             self.PinnedMessage = MessageObject["message"]["pinned_message"]       
-               
+    
+    def _SendToQueue_(self, MessageObject):
+        """
+        This methode will be a private function with the task to send the finished message to the postprocessing and shipping class. 
+
+        Variables:
+            - MessageObject                    ``object``
+                is the message object that has to be send
+        """
+        if self.MessageSend is False:
+            Workload = []
+
+            if isinstance(MessageObject, list):
+               Workload.extend(MessageObject)
+            elif isinstance(MessageObject, dict):
+                Workload.append(MessageObject)  
+        
+            for Message in Workload:
+                self._OutputQueue_.put(Message)
+                       
     def UserExists(self, ):
         """
         This method will detect if the use already exists or not.
@@ -733,7 +758,7 @@ class MessageProcessor(MessagePreProcessor):
         # 4096 characters long
                 
         MessageObjectList = []
-        
+
         if  MessageObject is not None:
             if len(MessageObject.Text) > 4095:
                 TemporaryObjectHolder = MessageObject
@@ -742,7 +767,7 @@ class MessageProcessor(MessagePreProcessor):
                     MessageObjectList.append(TemporaryObjectHolder)
             else:
                 MessageObjectList.append(MessageObject)
-        return MessageObjectList
+        self._SendToQueue_(MessageObjectList)
 
     def InterpretUserCommand(self, MessageObject):
         """
@@ -754,7 +779,7 @@ class MessageProcessor(MessagePreProcessor):
         the user Text.
 
         Variables:
-            MessageObject                 ``object``
+            - MessageObject                    ``object``
                 is the message object that has to be modified
         """
         # register the command in the database for later use
@@ -781,7 +806,6 @@ class MessageProcessor(MessagePreProcessor):
             
         elif self.Text == "/done":
             self.Text = "/start"
-
             MessageObject = self.InterpretUserCommand(MessageObject)
 
         elif self.Text == "/help":
@@ -941,6 +965,7 @@ class MessageProcessor(MessagePreProcessor):
                     self.SetLastSendCommand("/admin channel", None)
                 elif self.Text == self._("back"):
                     self.Text = "/start"
+
                     MessageObject = self.InterpretUserCommand(MessageObject)
                     
             elif self.LastSendCommand.startswith("/admin anime"):
@@ -972,7 +997,7 @@ class MessageProcessor(MessagePreProcessor):
                 elif self.Text == "back":
                     self.Text = "/admin"
                     self.ClearLastCommand()
-                    MessageObject = self.InterpretUserCommand(MessageObject)
+                    self.InterpretUserCommand(MessageObject)
                     
             elif self.LastSendCommand.startswith("/admin channel"):
                 # the channel commands
@@ -982,16 +1007,15 @@ class MessageProcessor(MessagePreProcessor):
                     # 1) Please enter the name of the channel - enter CANSEL to exit
                     # 1a) back to admin channnel
                     # 2) check if channel exists - save or error
-                    print(self.Text == "add channel")
                     if self.Text == "add channel":
                         MessageObject.Text = self._("Please send the name of the channel in this form: @example_channel")
                         self.SetLastSendCommand("/admin channel add", None)
-                    elif self.LastSendCommand == "/admin add channel add":
+                    elif self.LastSendCommand == "/admin channel add":
                         if self.Text.startswith("@"):
                         # enter the channel name into the database
                             if ChannelObject.ChannelExists(self.Text) is False:
                                 ChannelObject.AddChannel(self.Text, ByUser = self.InternalUserId)
-                                MessageObject = self._("Please enter the channel description, to chancel send CANCEL")
+                                MessageObject.Text = self._("Please enter the channel description, to chancel send CANCEL")
                                 self.SetLastSendCommand("/admin channel add channel description" + self.Text)
                             else:
                                 MessageObject.Text = self._("The channel already exists.\nTo change the description choose \"change description\" in the options.")
@@ -1015,7 +1039,7 @@ class MessageProcessor(MessagePreProcessor):
                     elif self.Text == "back":
                         self.Text = "/admin"
                         self.ClearLastCommand()
-                        MessageObject = self.InterpretUserCommand(MessageObject)
+                        self.InterpretUserCommand(MessageObject)
                         
                 elif self.LastSendCommand.startswith("/admin channel add"):
                     # this adds a new channel to the system 
@@ -1115,10 +1139,10 @@ class Channel(object):
 
         exists = self.SqlObject.ExecuteTrueQuery(
             self.SqlObject.CreateCursor(Dictionary=False),
-            Query=("SELECT EXISTS(SELECT 1 FROM User_Table WHERE"
-                   " External_Id = %s);"
+            Query=("SELECT EXISTS(SELECT 1 FROM Channel_Table WHERE"
+                   " True_Name = %s);"
                    ),
-            Data=self.UserId
+            Data=Name
         )[0][0]
         if exists == 0:
             return False
@@ -1135,8 +1159,6 @@ class Channel(object):
                     Cursor = self.Cursor,
                     FromTable = "Channel_Table",
                     Columns = Columns,)
-        print(Channels)
-        
         return Channels
     
     def GetDescription(self, Name):
