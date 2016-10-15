@@ -273,12 +273,12 @@ class MessageToBeSend(object):
         if Selective and "selective" not in self.ReplyMarkup:
             self.ReplyMarkup["selective"] = Selective
     
-    def InlineKeyboardButton(self, text, url = None,
+    """def InlineKeyboardButton(self, Text, Url = None,
                              callback_data = None, 
                              switch_inline_query = None, 
                              switch_inline_query_current_chat = None, 
                              callback_game = None):
-        """
+        ""
         This method will add a inline keyboard button 
 
         From the api:
@@ -330,10 +330,117 @@ class MessageToBeSend(object):
            |                                |            |the first button in the first row.            |
            +--------------------------------+------------+----------------------------------------------+
 
+        Variables: (see above)
+            - text 
+            - url                              ``list``
+            - callback_data                    ``list``
+            - switch_inline_query              ``list``
+            - switch_inline_query_current_chat ``list``
+            - callback_game                    ``list``
+        "" 
 
+        List_Of_Buttons = []
+
+        if url is not None:
+            List_Of_Buttons.extend(urls)
+        
+
+        self.ReplyMarkup["inline_keyboard"]  = List_Of_Buttons
+        pass     """
+    
+
+    def AddInlineButton(self, Text, ButtonType, ButtonData, ButtonLine = None):
+        """
+        This method will add a inline keyboard button to an array of buttons.
+
+        From the api:
+           This object represents one button of an inline keyboard. You
+           must use exactly one of the optional fields.
+
+           +--------------------------------+------------+----------------------------------------------+ 
+           |Field	                        |Type	     |Description                                   |
+           +================================+============+==============================================+ 
+           |text	                        |String      |Label text on the button                      |
+           +--------------------------------+------------+----------------------------------------------+
+           |url	                            |String      |Optional. HTTP url to be opened when button is|
+           |                                |            |pressed                                       |
+           +--------------------------------+------------+----------------------------------------------+ 
+           |callback_data                   |String      |Optional. Data to be sent in a callback query |
+           |                                |            |to the bot when button is pressed, 1-64 bytes |
+           +--------------------------------+------------+----------------------------------------------+ 
+           |switch_inline_query	            |String      |Optional. If set, pressing the button will    |
+           |                                |            |prompt the user to select one of their chats, |
+           |                                |            |open that chat and insert the bot‘s username  |
+           |                                |            |and the specified inline query in the input   |
+           |                                |            |field. Can be empty, in which case just the   |
+           |                                |            |bot’s username will be inserted.              |
+           |                                |            |Note: This offers an easy way for users to    |
+           |                                |            |start using your bot in inline mode when they |
+           |                                |            |are currently in a private chat with it.      |
+           |                                |            |Especially useful when combined with          |
+           |                                |            |switch_pm… actions – in this case the user    |
+           |                                |            |will be automatically returned to the chat    |
+           |                                |            |they switched from, skipping the chat         |
+           |                                |            |selection screen.                             |
+           +--------------------------------+------------+----------------------------------------------+ 
+           |switch_inline_query_current_chat|String	     |Optional. If set, pressing the button will    |
+           |                                |            |insert the bot‘s username and the specified   |
+           |                                |            |inline query in the current chat's input      |
+           |                                |            |field. Can be empty, in which case only the   |
+           |                                |            |bot’s username will be inserted.              |
+           |                                |            |                                              |
+           |                                |            |This offers a quick way for the user to open  |
+           |                                |            |your bot in inline mode in the same chat –    |
+           |                                |            |good for selecting something from multiple    |
+           |                                |            |options.                                      |
+           +--------------------------------+------------+----------------------------------------------+
+           |callback_game	                |CallbackGame|Optional. Description of the game that        |
+           |                                |            |will be launched when the user presses the    |
+           |                                |            |button.                                       |
+           |                                |            |                                              |
+           |                                |            |NOTE: This type of button must always be      |
+           |                                |            |the first button in the first row.            |
+           +--------------------------------+------------+----------------------------------------------+
+
+        Variables:
+            - Text                             ``string``
+            - ButtonType                       ``string``
+            - ButtonData                       ``string`` 
+            - ButtonLine                       ``integer`` 
+                sets the line in that the button will rest in (startswith 1);
+                a None type equals to automatic assigment
+
+        available types:
+            - url                              ``string``
+            - callback_data                    ``string``
+            - switch_inline_query              ``string``
+            - switch_inline_query_current_chat ``string``
+            - callback_game (not supported)    ``string``
         """
         
-        pass     
+        if "inline_keyboard" not in self.ReplyKeyboardMarkup:
+            self.ReplyMarkup["inline_keyboard"] = []
+        
+        if ButtonType not in ("url", "callback_data", "switch_inline_query", "switch_inline_query_current_chat", "callback_game"):
+            raise NotImplementedError("The button type {bType} is not supported".format(bType = ButtonType))
+
+        Data = {
+            "text": Text,
+            ButtonType: ButtonData
+            }
+
+        # get the lenght of the ReplyKeyboardMarkup["inline_keyboard"] array
+        Lenght = len(self.ReplyKeyboardMarkup["inline_keyboard"])
+
+        if ButtonLine is not None:
+            # extend the array to fit the need
+            if Lenght < ButtonLine:
+                self.ReplyKeyboardMarkup["inline_keyboard"].extend([[] for y in range(ButtonLine - Lenght)])
+
+            self.ReplyKeyboardMarkup["inline_keyboard"][ButtonLine].append(Data)
+             
+        else:
+            self.ReplyKeyboardMarkup["inline_keyboard"].append([Data])
                  
     def GetMessage(self):
         """

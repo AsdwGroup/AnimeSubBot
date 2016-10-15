@@ -1281,6 +1281,7 @@ class SqlDatabaseInstaller(object):
             ("Command_By_User", "Integer DEFAULT NULL"),  # is the internal id of the user
             ("Command", "Varchar(256) DEFAULT NULL"),
             ("Last_Used_Id", "Integer DEFAULT NULL"),
+            ("Last_Used_Data", "TEXT DEFAULT NULL"),
             ("FOREIGN KEY", "Command_By_User", "User_Table(Internal_Id)"),
             ("UNIQUE", "Command_By_User"),
             ("PRIMARY KEY", "Id"),
@@ -1350,6 +1351,7 @@ class SqlDatabaseInstaller(object):
             ("By_User", "Integer DEFAULT NULL"),
             ("True_Name", "TEXT DEFAULT NULL"),
             ("Description", "TEXT DEFAULT NULL"),
+            ("Description_Buttons", "TEXT DEFAULT NULL"),
             ("Last_Changes", "Integer DEFAULT NULL"),
             ("FOREIGN KEY", "By_User", "User_Table(Internal_Id)"),
             ("FOREIGN KEY", "Last_Changes", "User_Table(Internal_Id)"),

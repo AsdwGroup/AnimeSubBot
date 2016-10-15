@@ -896,7 +896,7 @@ class OutputTelegramApiServer(_TelegramApiServer):
         while returnMessage is None and attempts < 3:
             try:
                 returnMessage = self.TelegramApi.SendMessage(MessageObject)
-            except  urllib.error.HTTPError:
+            except urllib.error.HTTPError:
                 returnMessage = None
                 attempts += 1
         return returnMessage            

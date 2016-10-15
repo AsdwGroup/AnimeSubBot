@@ -310,6 +310,18 @@ class MessagePreProcessor(object):
             - MessageObject                    ``object``
                 is the message object that has to be send
         """
+
+        MessageObjectList = []
+
+        if  MessageObject is not None:
+            if len(MessageObject.Text) > 4096:
+                TemporaryObjectHolder = MessageObject
+                for TextPart in MessageProcessor.Chunker(MessageObject.Text, 4095):
+                    TemporaryObjectHolder.Text = TextPart
+                    MessageObjectList.append(TemporaryObjectHolder)
+            else:
+                MessageObjectList.append(MessageObject)
+
         if self.MessageSend is False:
             Workload = []
 
@@ -318,7 +330,7 @@ class MessagePreProcessor(object):
             elif isinstance(MessageObject, dict):
                 Workload.append(MessageObject)  
         
-            for Message in Workload:
+            for Message in MessageObjectList:
                 self._OutputQueue_.put(Message)
                        
     def UserExists(self, ):
@@ -440,17 +452,50 @@ class MessagePreProcessor(object):
         This methode will not return anything, but act as a generator object.
         
         Variables:
-            ListOfObjects               ``generator, list or string``
+            - ListOfObjects               ``generator, list or string``
                 This variable holds all the stuff to split.
             
-            SizeOfChunks                ``integer``
+            - SizeOfChunks                ``integer``
                 Holds the size of the chunks to turn the ListOfObjects 
                 into.
                 
         """
         for i in range(0, len(ListOfObjects), SizeOfChunks):
             yield ListOfObjects[i:i+SizeOfChunks]
+    
+    @staticmethod
+    def SpacedChunker(String, SizeOfChunks):
+        """
+        This method will split a sting by the spaces inside and will separate them correctly.
+
+        Variables:
+            - String               ``string``
+                This variable holds all the stuff to split.
             
+            SizeOfChunks                ``integer``
+                Holds the size of the chunks to turn the ListOfObjects 
+                into.
+        """
+        
+        EndList = []
+        StringSize = 0
+        TempString = ""
+        for i in String.split(" "):
+           
+            StringSize += len(i)
+            if StringSize > SizeOfChunks:
+                TempString += i
+            else:
+                EndList.append(TempString)
+                StringSize = 0
+                TempString = ""
+                StringSize += len(i)
+
+            StringSize = 0
+            pass 
+
+        return EndList
+                       
     def GroupExists(self):
         """
         This method checks if the group exists or not.
@@ -518,7 +563,7 @@ class MessagePreProcessor(object):
             Data=self.ChatId
         )
 
-    def SetLastSendCommand(self, Command, LastUsedId=None):
+    def SetLastSendCommand(self, Command, LastUsedId=None, LastUsedData = None):
         """
         This method will save the last user command into the database.
         
@@ -550,9 +595,13 @@ class MessagePreProcessor(object):
             "Command": Command,
 
         }
-        if LastUsedId != None:
+        if LastUsedId is not None:
             Columns["Last_Used_Id"] = LastUsedId
             Duplicate["Last_Used_Id"] = LastUsedId
+        
+        if LastUsedData is not None:
+            Columns["Last_Used_Data"] = LastUsedData
+            Duplicate["Last_Used_Data"] = LastUsedData
 
         SetLastSendCommand = self.SqlObject.InsertEntry(
             self.SqlCursor,
@@ -584,7 +633,7 @@ class MessagePreProcessor(object):
         """
 
         FromTable = "Session_Table"
-        Columns = ["Command", "Last_Used_Id"]
+        Columns = ["Command", "Last_Used_Id", "Last_Used_Data"]
         Where = [["Command_By_User", "=", "%s"]]
         Data = (self.InternalUserId,)
         LastSendCommand = self.SqlObject.SelectEntry(
@@ -600,6 +649,7 @@ class MessagePreProcessor(object):
         else:
             LastSendCommand["Last_Used_Id"] = None
             LastSendCommand["Command"] = None
+            LastSendCommand["Last_Used_Data"] = none
         return LastSendCommand
 
     def ClearLastCommand(self):
@@ -729,7 +779,6 @@ class MessageProcessor(MessagePreProcessor):
         MessageObject.Text = self._("Sorry, but this command could not be"
                                     " interpreted.")
         # check if message is a command
-
         if self.Text is not None:
             # Analyse the text and do your stuff.
             
@@ -737,37 +786,32 @@ class MessageProcessor(MessagePreProcessor):
             # If the name of the bot is used in the
             # command delete the @NameOfBot
             self.Text = re.sub(r"^(@\w+[bB]ot\s+)?", "", self.Text)
-            
-            if self.InGroup is False:
-                if self.Text.startswith("/"):
+
+            if self.Text.startswith("/"):
+
+                if self.InGroup is False:
                     MessageObject = self.InterpretUserCommand(MessageObject)
                 else:
-                    MessageObject = self.InterpretUserNonCommand(MessageObject)
-            else:
-                if self.Text.startswith("/"):
                     MessageObject = self.InterpretGroupCommand(MessageObject)
-                else:
-                    MessageObject = self.InterpretGroupNonCommand(
-                        MessageObject
-                    )
-                   
+            else:
+                # Get the last send command and the last used id
+                LastSendCommand = self.GetLastSendCommand()
+                self.LastUsedId = LastSendCommand["Last_Used_Id"]
+                self.LastSendCommand = LastSendCommand["Command"]
+                self.LastSendData = LastSendCommand["Last_Used_Data"]
+
+                if self.InGroup is False:
+                    MessageObject = self.InterpretUserNonCommand(MessageObject)
+                #else:
+                #    MessageObject = self.InterpretGroupNonCommand(MessageObject) 
         else:
             MessageObject = None
             
-        # checking that the leght of the message never will be longer then 
+        # checking that the lenght of the message never will be longer then 
         # 4096 characters long
                 
-        MessageObjectList = []
 
-        if  MessageObject is not None:
-            if len(MessageObject.Text) > 4095:
-                TemporaryObjectHolder = MessageObject
-                for TextPart in MessageProcessor.Chunker(MessageObject.Text, 4095):
-                    TemporaryObjectHolder.Text = TextPart
-                    MessageObjectList.append(TemporaryObjectHolder)
-            else:
-                MessageObjectList.append(MessageObject)
-        self._SendToQueue_(MessageObjectList)
+        self._SendToQueue_(MessageObject)
 
     def InterpretUserCommand(self, MessageObject):
         """
@@ -799,6 +843,7 @@ class MessageProcessor(MessagePreProcessor):
             )
                 
             self.ClearLastCommand()
+
         # this command will list the anime content on the server
         elif self.Text == "/list":
             # this command will send the anime list
@@ -812,6 +857,7 @@ class MessageProcessor(MessagePreProcessor):
             MessageObject.Text = self._(
                 "Work in progress! @AnimeSubBot is a bot."
             )
+
         elif self.Text == "/admin":
             # if that person is an administrator.
             if self.IsAdmin:
@@ -851,6 +897,7 @@ class MessageProcessor(MessagePreProcessor):
                     OneTimeKeyboard=True
                 )
             """
+
         else:
             # send that the command is unknown
             MessageObject.Text = self._("I apologize, but this command is not supported.\n"
@@ -870,11 +917,6 @@ class MessageProcessor(MessagePreProcessor):
             MessageObject                 ``object``
                 is the message object that has to be modified
         """
-
-        # Get the last send command and the last used id
-        LastSendCommand = self.GetLastSendCommand()
-        self.LastUsedId = LastSendCommand["Last_Used_Id"]
-        self.LastSendCommand = LastSendCommand["Command"]
 
         if self.LastSendCommand is None:
             # if there is nothing return the default.
@@ -1003,47 +1045,91 @@ class MessageProcessor(MessagePreProcessor):
                 # the channel commands
                 ChannelObject = Channel(self.SqlObject, self.SqlCursor)
                 if self.LastSendCommand.startswith("/admin channel"):
-                    #if self.Text.startswith("add channel"):
-                    # 1) Please enter the name of the channel - enter CANSEL to exit
-                    # 1a) back to admin channnel
-                    # 2) check if channel exists - save or error
-                    if self.Text == "add channel":
-                        MessageObject.Text = self._("Please send the name of the channel in this form: @example_channel")
-                        self.SetLastSendCommand("/admin channel add", None)
-                    elif self.LastSendCommand == "/admin channel add":
-                        if self.Text.startswith("@"):
-                        # enter the channel name into the database
-                            if ChannelObject.ChannelExists(self.Text) is False:
-                                ChannelObject.AddChannel(self.Text, ByUser = self.InternalUserId)
-                                MessageObject.Text = self._("Please enter the channel description, to chancel send CANCEL")
-                                self.SetLastSendCommand("/admin channel add channel description" + self.Text)
-                            else:
-                                MessageObject.Text = self._("The channel already exists.\nTo change the description choose \"change description\" in the options.")
-                                self.SetLastSendCommand("/admin channel")
-                    elif self.LastSendCommand.startswith("/admin channel add channel description"):
-                        Name = self.LastSendCommand.split(" ")[5]
-                        if self.Text != "CANCEL":
-                            MessageObject.Text = self._("Channel setup successful.")
-                            ChannelObject.ChangeDescription(Name, self.Text, ByUser = self.InternalUserId)
-                            self.SetLastSendCommand("/admin channel")
-                        else:
-                            MessageObj.Text = self._("To change the description choose \"change description\" in the options.")
-                            self.SetLastSendCommand("/admin channel")
+                    if self.Text == "add channel" or self.LastSendCommand.startswith("/admin channel"):
+                        # add new channel
+                        # 1) Please enter the name of the channel - enter CANSEL to exit
+                        # 1a) back to admin hub
+                        # 2) check if channel exists - save (a) or error (b)
+                        # 2a) save channel name
+                        # 2b) back to admin channnel
+                        # 3a) enter description 
+                        # 3b) chancel => return to admin hub
+                        # 4a) enter buttons to use with description YES / NO
+                        # 4b) chancel => return to admin hub
+                        # 5a) success
+                        if self.Text == "add channel":
+                            MessageObject.Text = self._("Please send the name of the channel in this form @example_channel or send /done")
+                            self.SetLastSendCommand("/admin channel add", None)
+                        if self.LastSendCommand.startswith("/admin channel add"):
+                            if self.LastSendCommand == "/admin channel add":
+                                # 2) check if channel exists - save (a) or error (b)
+                                if self.Text.startswith("@"):
+                                    # enter the channel name into the database if the channel doesnt't exists yet
+                                    if ChannelObject.ChannelExists(self.Text) is True:
+                                        # 2b) back to admin channnel
+                                        MessageObject.Text = self._("The channel already exists.\nTo change the description choose \"change description\" in the options.")
+                                        self.SetLastSendCommand("/admin channel")
+                                    else:
+                                        # 3a) enter description 
+                                        ChannelObject.AddChannel(self.Text, ByUser = self.InternalUserId)
+                                        MessageObject.Text = self._("Please enter the channel description, to chancel send CANCEL")
+                                        self.SetLastSendCommand("/admin channel add channel description", LastUsedData = self.Text)
+
+                            elif self.LastSendCommand == "/admin channel add description":
+                                # 4a) enter buttons to use with description
+                                if self.Text != "CANCEL":
+                                    MessageObject.Text = self._("Do you wish to add buttons?")
+                                    MessageObject.ReplyKeyboardMarkup([
+                                        [self._("YES")],
+                                        [self._("NO")]
+                                    ],
+                                        OneTimeKeyboard=True
+                                    )
+                                    # saving the description without buttons
+                                    ChannelObject.ChangeDescription(self.LastSendData, self.Text, ByUser = self.InternalUserId)
+                                    # saving the description without buttons                            
+                                    self.SetLastSendCommand("/admin channel add description buttons unsure", LastUsedData = self.LastSendData) 
+                                else:
+                                    MessageObj.Text = self._("To change the description choose \"change description\" in the options.")
+                                    self.SetLastSendCommand("/admin channel")
+                            elif self.LastSendCommand == "/admin channel add description buttons unsure":
+                                if self.Text == self._("YES"):
+                                    # 4a) enter buttons to use with description YES
+                                    MessageObject.Text = self._("Please send the buttons like this:\nText;Url\nText;Url")
+                                    self.SetLastSendCommand("/admin channel add description buttons sure", LastUsedData = self.LastSendData) 
+                                else:
+                                    # 4b) no => return to admin hub
+                                    self.SetLastSendCommand("/admin channel")
+                            elif self.LastSendCommand == "/admin channel add description buttons sure":
+                                ChannelObject.ChangeDescriptionButton(self.LastSendData, self.Text, self.InternalUserId)
+                                Description, Buttons = ChannelObject.GetDescription()
+
+                                MessageObject.Text = Description
+                                if Buttons is not None:
+                                    for Line in Buttons.split("\n"):
+                                        Text, Url = Line.split(";")
+                                        MessageObject.AddInlineButton(Text, Url)
+                                
+                                self._SendToQueue_(MessageObject)
+
+                                
 
                     elif self.Text == "change description":
                         pass
                     elif self.Text == "send description":
-                        pass
+                        MessageObject.Text = Description
+                        if Buttons is not None:
+                            for Line in Buttons.split("\n"):
+                                Text, Url = Line.split(";")
+                                MessageObject.AddInlineButton(Text, Url)
+
                     elif self.Text == "delete channel":
                         pass
                     elif self.Text == "back":
                         self.Text = "/admin"
                         self.ClearLastCommand()
                         self.InterpretUserCommand(MessageObject)
-                        
-                elif self.LastSendCommand.startswith("/admin channel add"):
-                    # this adds a new channel to the system 
-                    Channel.AddChannel(self.Text)
+
         else:               
             MessageObject.Text = self._("How can I help you?")
             MessageObject.ReplyKeyboardMarkup(
@@ -1101,6 +1187,8 @@ class Channel(object):
                 the true name of the channnel, this will be used as autifications methode.
             - Desciption             ``string``
                 the channnel description   
+            - ByUser                 ``string``
+                the user that changed the value 
         """
         Data = {"Description": Description}
         if ByUser is not None:
@@ -1121,6 +1209,38 @@ class Channel(object):
                                   )
         self.SqlObject.Commit()
     
+    def ChangeDescriptionButton(self, Name, Buttons, ByUser = None):
+        """
+        This methode will change the description buttons of the channel.
+
+        Variables:
+            - Name                   ``string``
+                the true name of the channnel, this will be used as autifications methode.
+            - Desciption             ``string``
+                the channnel description   
+            - ByUser                 ``string``
+                the user that changed the value   
+        """
+        Data = {"Description_Buttons": Buttons}
+
+        if ByUser is not None:
+            Data["Last_Changes"] = ByUser
+        
+        Where = [
+            [
+                 "True_Name", 
+                 "=", 
+                 Name,
+                ],
+            ]
+
+        self.SqlObject.UpdateEntry(self.Cursor,
+                                  "Channel_Table",
+                                  Data,
+                                  Where
+                                  )
+        self.SqlObject.Commit()
+
     def ChannelExists(self, Name):
         """
         This method will detect if the use already exists or not.
