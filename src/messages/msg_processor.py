@@ -444,6 +444,19 @@ class MessagePreProcessor(object):
             
         return internalUserId, Is_Admin
     
+    def GetMessageObject(self,):
+        """
+        This method will generate a default message object to work with.
+        
+        Variables:
+            \-
+        """
+        MessageObject = message.MessageToBeSend(ToChatId=self.ChatId)
+        MessageObject.Text = self._("Sorry, but this command could not be"
+                                    " interpreted.")
+        
+        return MessageObject
+
     @staticmethod
     def Chunker(ListOfObjects, SizeOfChunks):
         """
@@ -760,7 +773,7 @@ class MessageProcessor(MessagePreProcessor):
         }
     
     """
-
+    
     def InterpretMessage(self):
         """
         This method interprets the user text.
@@ -774,10 +787,8 @@ class MessageProcessor(MessagePreProcessor):
         Variables:
             \-
         """
+        MessageObject = self.GetMessageObject()
 
-        MessageObject = message.MessageToBeSend(ToChatId=self.ChatId)
-        MessageObject.Text = self._("Sorry, but this command could not be"
-                                    " interpreted.")
         # check if message is a command
         if self.Text is not None:
             # Analyse the text and do your stuff.
@@ -1054,6 +1065,7 @@ class MessageProcessor(MessagePreProcessor):
                         # 2b) back to admin channnel
                         # 3a) enter description 
                         # 3b) chancel => return to admin hub
+                        # 3ab) is the text ok Yes / No
                         # 4a) enter buttons to use with description YES / NO
                         # 4b) chancel => return to admin hub
                         # 5a) success
@@ -1076,8 +1088,20 @@ class MessageProcessor(MessagePreProcessor):
                                         self.SetLastSendCommand("/admin channel add channel description", LastUsedData = self.Text)
 
                             elif self.LastSendCommand == "/admin channel add description":
+                                if self.Text != "CANCEL":
+                                    
+                                    
+                                                
+                                    MessageObject.Text = self._("Is the description to your liking?")
+                                    MessageObject.ReplyKeyboardMarkup([
+                                        [self._("YES")],
+                                        [self._("NO")]
+                                    ],
+                                        OneTimeKeyboard=True
+                                    )
                                 # 4a) enter buttons to use with description
                                 if self.Text != "CANCEL":
+                                
                                     MessageObject.Text = self._("Do you wish to add buttons?")
                                     MessageObject.ReplyKeyboardMarkup([
                                         [self._("YES")],
